@@ -1,0 +1,937 @@
+/* =========================================
+   PROJECT DETAIL PAGE
+========================================= */
+
+.project-page {
+  min-height: 100vh;
+  background: #050505;
+  color: #ffffff;
+}
+
+.project-page a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.project-page img {
+  display: block;
+  max-width: 100%;
+}
+
+.project-eyebrow {
+  margin: 0;
+  color: #c98b4a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+
+/* =========================================
+   HERO
+========================================= */
+
+.project-hero {
+  padding: 130px 6vw 80px;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.project-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 60px;
+}
+
+.project-index {
+  margin: 12px 0 0;
+  color: #666;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.project-year {
+  color: #666;
+  font-size: 13px;
+}
+
+.project-hero-content {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.project-hero-copy {
+  padding-bottom: 10px;
+}
+
+.project-category {
+  margin: 0 0 20px;
+  color: #c98b4a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.project-hero h1 {
+  max-width: 650px;
+  margin: 0;
+  font-size: clamp(55px, 7vw, 105px);
+  font-weight: 600;
+  line-height: 0.88;
+  letter-spacing: -0.065em;
+}
+
+.project-summary {
+  max-width: 500px;
+  margin: 30px 0 0;
+  color: #888;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.project-hero-image {
+  width: 100%;
+  max-width: 680px;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1px solid #292929;
+  border-radius: 16px;
+  background: #111;
+}
+
+.project-hero-image img {
+  width: 100%;
+  max-height: 440px;
+  object-fit: cover;
+}
+
+
+/* =========================================
+   OVERVIEW
+========================================= */
+
+.project-overview {
+  display: grid;
+  grid-template-columns: 0.65fr 1.35fr;
+  gap: 70px;
+  padding: 100px 12vw;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.project-overview-content {
+  max-width: 800px;
+}
+
+.project-overview h2 {
+  margin: 0 0 32px;
+  font-size: clamp(45px, 5.5vw, 78px);
+  font-weight: 500;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.project-overview-content p {
+  max-width: 620px;
+  margin: 0;
+  color: #888;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+
+/* =========================================
+   DELIVERABLES
+========================================= */
+
+.project-deliverables {
+  padding: 80px 6vw 110px;
+}
+
+.project-deliverables-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 28px;
+  border-bottom: 1px solid #242424;
+}
+
+.deliverables-count {
+  margin: 0;
+  color: #666;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+
+/* =========================================
+   DELIVERABLE
+========================================= */
+
+.deliverables-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.deliverable {
+  display: grid;
+  grid-template-columns: 0.22fr 1.78fr;
+  gap: 45px;
+  padding: 70px 0;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.deliverable-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #555;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.deliverable-meta span:last-child {
+  color: #c98b4a;
+}
+
+.deliverable-content {
+  min-width: 0;
+}
+
+.deliverable-copy {
+  max-width: 650px;
+  margin-bottom: 35px;
+}
+
+.deliverable-copy h2 {
+  margin: 0 0 16px;
+  font-size: clamp(32px, 3.8vw, 55px);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+}
+
+.deliverable-copy p {
+  max-width: 560px;
+  margin: 0;
+  color: #888;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+
+/* =========================================
+   LIGHTBOX THUMBNAILS
+========================================= */
+
+.lightbox-thumbnails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+
+/*
+   THIS IS THE IMPORTANT PART.
+
+   The actual portfolio assets are now
+   deliberately small.
+*/
+
+.lightbox-thumbnail {
+  position: relative;
+  display: block;
+  width: 280px;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #292929;
+  border-radius: 12px;
+  background: #111;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.lightbox-thumbnail img {
+  width: 100%;
+  height: 190px;
+  object-fit: contain;
+  background: #ffffff;
+  transition: transform 0.5s ease;
+}
+
+
+/*
+   Hover overlay
+*/
+
+.thumbnail-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+
+  opacity: 0;
+
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-thumbnail:hover {
+  transform: translateY(-5px);
+  border-color: #c98b4a;
+}
+
+.lightbox-thumbnail:hover img {
+  transform: scale(1.03);
+}
+
+.lightbox-thumbnail:hover .thumbnail-overlay {
+  opacity: 1;
+}
+
+
+/* =========================================
+   BUSINESS CARDS
+========================================= */
+
+/*
+   Business cards should feel like
+   actual small cards rather than posters.
+*/
+
+.deliverable[data-type="BUSINESS CARDS"] .lightbox-thumbnails {
+  gap: 16px;
+}
+
+.deliverable[data-type="BUSINESS CARDS"] .lightbox-thumbnail {
+  width: 250px;
+}
+
+.deliverable[data-type="BUSINESS CARDS"] .lightbox-thumbnail img {
+  height: 155px;
+}
+
+
+/* =========================================
+   BRANDING / LOGO
+========================================= */
+
+.deliverable[data-type="BRANDING"] .lightbox-thumbnail {
+  width: 320px;
+}
+
+.deliverable[data-type="BRANDING"] .lightbox-thumbnail img {
+  height: 200px;
+}
+
+
+/* =========================================
+   PRINT
+========================================= */
+
+.deliverable[data-type="PRINT"] .lightbox-thumbnail {
+  width: 300px;
+}
+
+.deliverable[data-type="PRINT"] .lightbox-thumbnail img {
+  height: 210px;
+}
+
+
+/* =========================================
+   FLYER
+========================================= */
+
+.deliverable[data-type="FLYER"] .lightbox-thumbnail {
+  width: 260px;
+}
+
+.deliverable[data-type="FLYER"] .lightbox-thumbnail img {
+  height: 300px;
+}
+
+
+/* =========================================
+   LIGHTBOX
+========================================= */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 40px;
+
+  background: rgba(5, 5, 5, 0.72);
+
+  /*
+     This creates the blurred page
+     behind the image.
+  */
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  animation: lightboxFadeIn 0.25s ease;
+}
+
+
+/* =========================================
+   LIGHTBOX INNER
+========================================= */
+
+.lightbox-inner {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+
+
+/* =========================================
+   LARGE IMAGE
+========================================= */
+
+.lightbox-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: min(85vw, 1100px);
+  height: min(88vh, 850px);
+
+  padding: 20px;
+
+  animation: lightboxImageIn 0.3s ease;
+}
+
+.lightbox-image {
+  width: auto;
+  height: auto;
+
+  max-width: 100%;
+  max-height: 100%;
+
+  object-fit: contain;
+
+  border-radius: 8px;
+
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.55);
+}
+
+
+/* =========================================
+   CLOSE BUTTON
+========================================= */
+
+.lightbox-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 48px;
+  height: 48px;
+
+  border: 1px solid #444;
+  border-radius: 50%;
+
+  background: rgba(10, 10, 10, 0.7);
+
+  color: #ffffff;
+
+  font-size: 28px;
+  font-weight: 300;
+
+  cursor: pointer;
+
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.lightbox-close:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #050505;
+  transform: rotate(90deg);
+}
+
+
+/* =========================================
+   ARROWS
+========================================= */
+
+.lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 58px;
+  height: 58px;
+
+  margin-top: -29px;
+
+  border: 1px solid #444;
+  border-radius: 50%;
+
+  background: rgba(10, 10, 10, 0.75);
+
+  color: #ffffff;
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.lightbox-arrow:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #050505;
+}
+
+.lightbox-prev {
+  left: 15px;
+}
+
+.lightbox-next {
+  right: 15px;
+}
+
+.lightbox-prev:hover {
+  transform: translateX(-4px);
+}
+
+.lightbox-next:hover {
+  transform: translateX(4px);
+}
+
+
+/* =========================================
+   COUNTER
+========================================= */
+
+.lightbox-counter {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  color: #888;
+
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+
+/* =========================================
+   LIGHTBOX ANIMATION
+========================================= */
+
+@keyframes lightboxFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lightboxImageIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
+/* =========================================
+   VIDEO
+========================================= */
+
+.deliverable-video {
+  width: min(700px, 100%);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #252525;
+  border-radius: 14px;
+  background: #111;
+}
+
+.deliverable-video video {
+  width: 100%;
+  max-height: 430px;
+  display: block;
+  object-fit: contain;
+}
+
+
+/* =========================================
+   NEXT PROJECT
+========================================= */
+
+.project-navigation {
+  padding: 0 6vw;
+  border-top: 1px solid #1f1f1f;
+}
+
+.next-project {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 100px 0;
+}
+
+.next-project h2 {
+  margin: 18px 0 0;
+  font-size: clamp(45px, 6.5vw, 90px);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  transition: transform 0.4s ease;
+}
+
+.next-project-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+
+  border: 1px solid #333;
+  border-radius: 50%;
+
+  color: #ffffff;
+  font-size: 24px;
+
+  transition:
+    background 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.next-project:hover h2 {
+  transform: translateX(8px);
+}
+
+.next-project:hover .next-project-arrow {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #050505;
+}
+
+
+/* =========================================
+   BACK
+========================================= */
+
+.project-back {
+  padding: 35px 6vw 70px;
+  text-align: center;
+  border-top: 1px solid #1f1f1f;
+}
+
+.project-back a {
+  display: inline-block;
+
+  padding-bottom: 5px;
+
+  border-bottom: 1px solid #444;
+
+  color: #aaa;
+  font-size: 13px;
+
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.project-back a:hover {
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+
+/* =========================================
+   TABLET
+========================================= */
+
+@media (max-width: 900px) {
+
+  .project-hero {
+    padding: 110px 24px 65px;
+  }
+
+  .project-hero-top {
+    margin-bottom: 45px;
+  }
+
+  .project-hero-content {
+    grid-template-columns: 1fr;
+    gap: 45px;
+  }
+
+  .project-hero h1 {
+    font-size: clamp(55px, 13vw, 95px);
+  }
+
+  .project-hero-image {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .project-overview {
+    grid-template-columns: 1fr;
+    gap: 35px;
+    padding: 75px 24px;
+  }
+
+  .project-deliverables {
+    padding: 65px 24px 85px;
+  }
+
+  .deliverable {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 55px 0;
+  }
+
+  .deliverable-meta {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .lightbox-thumbnail {
+    width: 240px;
+  }
+
+  .lightbox-thumbnail img {
+    height: 165px;
+  }
+
+  .project-navigation {
+    padding: 0 24px;
+  }
+
+  .next-project {
+    padding: 75px 0;
+  }
+
+  .project-back {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+
+/* =========================================
+   PHONE
+========================================= */
+
+@media (max-width: 600px) {
+
+  .project-hero {
+    padding: 95px 20px 50px;
+  }
+
+  .project-hero-top {
+    margin-bottom: 35px;
+  }
+
+  .project-hero h1 {
+    font-size: clamp(50px, 15vw, 80px);
+  }
+
+  .project-summary {
+    margin-top: 24px;
+    font-size: 15px;
+  }
+
+  .project-hero-image {
+    border-radius: 12px;
+  }
+
+  .project-hero-image img {
+    max-height: 350px;
+  }
+
+  .project-overview {
+    padding: 60px 20px;
+  }
+
+  .project-overview h2 {
+    font-size: clamp(43px, 13vw, 68px);
+  }
+
+  .project-overview-content p {
+    font-size: 15px;
+  }
+
+  .project-deliverables {
+    padding: 55px 20px 70px;
+  }
+
+  .project-deliverables-header {
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .deliverable {
+    padding: 45px 0;
+  }
+
+  .deliverable-copy h2 {
+    font-size: 36px;
+  }
+
+  .deliverable-copy p {
+    font-size: 14px;
+  }
+
+
+  /* Small mobile cards */
+
+  .lightbox-thumbnails {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .lightbox-thumbnail,
+  .deliverable[data-type="BUSINESS CARDS"] .lightbox-thumbnail,
+  .deliverable[data-type="BRANDING"] .lightbox-thumbnail,
+  .deliverable[data-type="PRINT"] .lightbox-thumbnail,
+  .deliverable[data-type="FLYER"] .lightbox-thumbnail {
+    width: 100%;
+  }
+
+  .lightbox-thumbnail img {
+    height: 145px;
+  }
+
+  .deliverable[data-type="BUSINESS CARDS"] .lightbox-thumbnail img {
+    height: 120px;
+  }
+
+  .deliverable[data-type="FLYER"] .lightbox-thumbnail img {
+    height: 190px;
+  }
+
+
+  /* Lightbox mobile */
+
+  .lightbox {
+    padding: 20px;
+  }
+
+  .lightbox-image-wrap {
+    width: 100%;
+    height: 82vh;
+    padding: 15px;
+  }
+
+  .lightbox-arrow {
+    width: 46px;
+    height: 46px;
+    margin-top: -23px;
+    font-size: 18px;
+  }
+
+  .lightbox-prev {
+    left: 5px;
+  }
+
+  .lightbox-next {
+    right: 5px;
+  }
+
+  .lightbox-close {
+    top: 5px;
+    right: 5px;
+
+    width: 42px;
+    height: 42px;
+
+    font-size: 24px;
+  }
+
+  .lightbox-counter {
+    bottom: 5px;
+  }
+
+
+  .deliverable-video video {
+    max-height: 350px;
+  }
+
+  .next-project {
+    padding: 65px 0;
+  }
+
+  .next-project h2 {
+    font-size: clamp(43px, 12vw, 68px);
+  }
+
+  .next-project-arrow {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+  }
+
+  .project-back {
+    padding-bottom: 50px;
+  }
+}
