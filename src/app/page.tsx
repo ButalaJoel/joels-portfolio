@@ -1,21 +1,11 @@
-import Hero from "@/components/Hero";
-import SelectedWork from "@/components/SelectedWork";
-import WhatIDo from "@/components/WhatIDo";
-import About from "@/components/About";
-import Experience from "@/components/Experience";
-import CTA from "@/components/CTA";
-import Footer from "@/components/Footer";
+import World from "@/world/World";
+import { projects } from "@/data/projects";
+import { profile } from "@/data/profile";
 
 export default function Home() {
   return (
     <main>
-      <Hero />
-      <SelectedWork />
-      <WhatIDo />
-      <About />
-      <Experience />
-      <CTA />
-      <Footer />
+      <World projects={projects} profile={profile} />
     </main>
   );
 }

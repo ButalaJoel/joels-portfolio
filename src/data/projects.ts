@@ -95,7 +95,7 @@ export const projects = [
     description:
       "Brand communication and digital content created for a leading Ugandan paint manufacturer.",
 
-    image: "/images/projects/peacock-paints.png",
+    image: "/images/projects/peacock-paints/hero/peacock-hero.png",
 
     deliverables: [],
   },
