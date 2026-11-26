@@ -18,13 +18,8 @@ export const cv: CV = {
   whatsapp: "256786713906",
   links: [{ label: "GitHub", href: "https://github.com/ButalaJoel" }],
   photo: "/images/joel-hero.png",
-  education: [
-    {
-      award: "Diploma in Information and Communication Technology — First Class",
-      school: "Uganda Institute of Information and Communications Technology (UICT)",
-    },
-  ],
-  ambitions: ["Bachelor's degree in Computer Science (planned)"],
+  education: [],
+  ambitions: [],
   experience: [
     {
       org: "Peacock Paints Ltd, Uganda",
@@ -128,7 +123,6 @@ export const cv: CV = {
     "Entrepreneurship",
   ],
   achievements: [
-    "First Class Diploma in Information and Communication Technology, UICT",
     "Marketing & Communications Manager at Peacock Paints",
     "Founded NovaWorks (Nova Creative Works Ltd)",
     "Live systems in daily use, including a point-of-sale system for MS Security Systems",

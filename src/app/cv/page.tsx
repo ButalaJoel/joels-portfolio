@@ -81,6 +81,7 @@ export default function CVPage() {
           </ul>
         </section>
 
+        {cv.education.length > 0 && (
         <section>
           <h2>Education</h2>
           {cv.education.map((ed) => (
@@ -90,6 +91,7 @@ export default function CVPage() {
           ))}
           {cv.ambitions.length > 0 && <p>Next: {cv.ambitions.join(", ")}.</p>}
         </section>
+        )}
 
         <section>
           <h2>Skills</h2>

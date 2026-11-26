@@ -501,14 +501,14 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   physics.addCircle(5.5, 24, 0.15);
 
   // Achievements Centre (CV)
-  const cvSign = makeSignTexture({ title: "ACHIEVEMENTS CENTRE", subtitle: "CV · Experience · Education · Skills", bg: PALETTE.cream, fg: PALETTE.ink, accent: "#b37400", width: 1024, height: 300 });
+  const cvSign = makeSignTexture({ title: "ACHIEVEMENTS CENTRE", subtitle: "CV · Experience · Skills", bg: PALETTE.cream, fg: PALETTE.ink, accent: "#b37400", width: 1024, height: 300 });
   const cvBuilding = createBuilding({ w: 12, d: 7, h: 6.5, wall: PALETTE.ink, roof: PALETTE.brand, signTex: cvSign });
   cvBuilding.position.set(-26, 0, 27);
   scene.add(cvBuilding);
   physics.addBox(-26, 27, 6, 3.5);
   mapBlocks.push({ x: -26, z: 27, w: 12, d: 7, color: PALETTE.ink });
   exclude(-26, 27, 9);
-  addPad({ id: "cv", type: "cv", title: "Achievements Centre", subtitle: "CV, experience, education & skills", x: -26, z: 34.5, r: 2.8 });
+  addPad({ id: "cv", type: "cv", title: "Achievements Centre", subtitle: "CV, experience & skills", x: -26, z: 34.5, r: 2.8 });
 
   // Contact kiosk
   const kioskSign = makeSignTexture({ title: "CONTACT CENTRE", subtitle: "Email · Phone · WhatsApp", bg: PALETTE.ink, width: 1024, height: 256 });

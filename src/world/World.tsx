@@ -584,13 +584,17 @@ function CVView({ cv, asset, cvHref, onContact }: { cv: CV; asset: (p: string) =
           ))}
         </div>
 
-        <h3 className="jw-h3 jw-sub">Education</h3>
-        {cv.education.map((ed) => (
-          <div key={ed.award} className="jw-job">
-            <p className="jw-job-role">{ed.award}</p>
-            <p className="jw-job-org">{ed.school}</p>
-          </div>
-        ))}
+        {cv.education.length > 0 && (
+          <>
+            <h3 className="jw-h3 jw-sub">Education</h3>
+            {cv.education.map((ed) => (
+              <div key={ed.award} className="jw-job">
+                <p className="jw-job-role">{ed.award}</p>
+                <p className="jw-job-org">{ed.school}</p>
+              </div>
+            ))}
+          </>
+        )}
         {cv.ambitions.length > 0 && <p className="jw-small jw-muted">Next: {cv.ambitions.join(" · ")}</p>}
 
         <h3 className="jw-h3 jw-sub">Skills</h3>
@@ -802,13 +806,17 @@ function PortfolioMode(props: {
               </div>
             </div>
           ))}
-          <h3 className="jw-h3 jw-sub">Education</h3>
-          {cv.education.map((ed) => (
-            <div key={ed.award} className="jw-job">
-              <p className="jw-job-role">{ed.award}</p>
-              <p className="jw-job-org">{ed.school}</p>
-            </div>
-          ))}
+          {cv.education.length > 0 && (
+            <>
+              <h3 className="jw-h3 jw-sub">Education</h3>
+              {cv.education.map((ed) => (
+                <div key={ed.award} className="jw-job">
+                  <p className="jw-job-role">{ed.award}</p>
+                  <p className="jw-job-org">{ed.school}</p>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </section>
 
