@@ -1,11 +1,11 @@
 import World from "@/world/World";
-import { projects } from "@/data/projects";
-import { profile } from "@/data/profile";
+import { exhibits } from "@/content/exhibits";
+import { cv, districts } from "@/content/cv";
 
 export default function Home() {
   return (
     <main>
-      <World projects={projects} profile={profile} />
+      <World exhibits={exhibits} districts={districts} cv={cv} />
     </main>
   );
 }

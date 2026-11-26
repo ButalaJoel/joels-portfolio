@@ -13,11 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Joel Butala — Designer & Developer, Kampala",
+  title: "JOELVERSE — Joel Butala, Creative, Marketing & Technology",
   description:
-    "Portfolio of Joel Butala, a designer and developer in Kampala. Ride a boda boda through a tiny 3D Kampala to explore branding, web and motion work.",
+    "Joel Butala is a multidisciplinary creative, marketing and technology professional in Kampala. Ride a boda boda through a 3D world of his marketing, branding, web, software and business work, or open the classic portfolio.",
   openGraph: {
-    title: "Joel Butala — Designer & Developer",
+    title: "JOELVERSE — Joel Butala",
     description: "Ride a boda boda through a tiny 3D Kampala to explore my work.",
   },
 };

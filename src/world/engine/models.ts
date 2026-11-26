@@ -468,3 +468,27 @@ export function createBall() {
   g.add(ball);
   return g;
 }
+
+/** District gateway arch spanning a road. Faces +z by default; rotate for other roads. */
+export function createArch(signTex: THREE.Texture, color: string, span = 11) {
+  const g = new THREE.Group();
+  const pillarL = box(0.8, 7, 0.8, PALETTE.ink);
+  pillarL.position.set(-span / 2, 3.5, 0);
+  const pillarR = pillarL.clone();
+  pillarR.position.x = span / 2;
+  const capL = box(1.1, 0.4, 1.1, color);
+  capL.position.set(-span / 2, 7.2, 0);
+  const capR = capL.clone();
+  capR.position.x = span / 2;
+  const beam = box(span + 1.4, 1.9, 0.5, PALETTE.ink);
+  beam.position.y = 6.3;
+  const stripe = box(span + 1.42, 0.18, 0.52, color);
+  stripe.position.y = 5.3;
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(span, 1.6), new THREE.MeshBasicMaterial({ map: signTex, toneMapped: false }));
+  front.position.set(0, 6.35, 0.26);
+  const back = front.clone();
+  back.position.z = -0.26;
+  back.rotation.y = Math.PI;
+  g.add(pillarL, pillarR, capL, capR, beam, stripe, front, back);
+  return g;
+}

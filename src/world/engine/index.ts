@@ -3,6 +3,7 @@ import { WorldAudio } from "./audio";
 import { makeGroundTextTexture, makeLabelTexture, makePosterTexture, makeSignTexture } from "./canvasTextures";
 import {
   PALETTE,
+  createArch,
   createBall,
   createBanana,
   createBillboard,
@@ -27,15 +28,20 @@ import { PhysicsWorld, Prop } from "./physics";
 /* Public types                                                        */
 /* ------------------------------------------------------------------ */
 
-export type WorldProject = {
+export type DistrictKey = "marketing" | "creative" | "digital" | "business" | "innovation";
+
+export type WorldExhibit = {
   slug: string;
   title: string;
-  category: string;
-  year: string;
+  subtitle: string;
+  district: DistrictKey;
+  /** image for the billboard, loaded when you ride close */
   image?: string;
 };
 
-export type ZoneType = "project" | "about" | "contact" | "pitch";
+export type WorldDistrict = { id: DistrictKey; name: string; color: string };
+
+export type ZoneType = "exhibit" | "cv" | "contact" | "pitch";
 
 export type Zone = {
   id: string;
@@ -43,22 +49,29 @@ export type Zone = {
   title: string;
   subtitle: string;
   slug?: string;
+  district?: DistrictKey;
   x: number;
   z: number;
   r: number;
 };
 
-export type TeleportTarget = "spawn" | "work" | "about" | "contact" | "pitch";
+export type AreaId = DistrictKey | "start" | "pitch";
+
+export type TeleportTarget = AreaId | "cv" | "contact";
 
 export type WorldOptions = {
-  projects: WorldProject[];
+  exhibits: WorldExhibit[];
+  districts: WorldDistrict[];
   tools: string[];
   resolveAsset?: (path: string) => string;
+  /** small canvas the engine keeps drawing the mini-map on */
+  minimap?: HTMLCanvasElement | null;
   onProgress?: (p: number) => void;
   onReady?: () => void;
   onZone?: (zone: Zone | null) => void;
   onActivate?: (zone: Zone) => void;
   onToast?: (text: string) => void;
+  onDistrict?: (area: AreaId | null) => void;
 };
 
 export type TouchInput = { x: number; y: number; active: boolean };
@@ -72,6 +85,8 @@ export type WorldHandle = {
   setMuted: (m: boolean) => void;
   setPaused: (p: boolean) => void;
   getZones: () => Zone[];
+  /** draw the full map (used by the big map in the UI) */
+  drawMap: (canvas: HTMLCanvasElement, opts?: { labels?: boolean }) => void;
   destroy: () => void;
 };
 
@@ -93,14 +108,37 @@ function wrapAngle(a: number) {
   return a;
 }
 
-const SPAWN = { x: 0, z: 26, h: 0 };
+/* ------------------------------------------------------------------ */
+/* Map layout (world units ≈ metres, -z is north / up the screen)      */
+/* ------------------------------------------------------------------ */
+
+const SPAWN = { x: 0, z: 22, h: 0 };
+const BOUNDS = 106;
+const PITCH = { x: -48, z: 66 };
+const CAMPUS_ROAD_Z = 58;
+
 const TELEPORTS: Record<TeleportTarget, { x: number; z: number; h: number }> = {
-  spawn: SPAWN,
-  work: { x: 0, z: -20, h: 0 },
-  about: { x: 22, z: 1.5, h: -Math.PI / 2 },
-  contact: { x: -22, z: 1.5, h: Math.PI / 2 },
-  pitch: { x: 0, z: 50, h: Math.PI },
+  start: SPAWN,
+  cv: { x: -26, z: 44, h: 0 },
+  contact: { x: 24, z: 42, h: 0 },
+  digital: { x: 0, z: -18, h: 0 },
+  creative: { x: 18, z: 1.5, h: -Math.PI / 2 },
+  marketing: { x: -18, z: -1.5, h: Math.PI / 2 },
+  business: { x: 0, z: 36, h: Math.PI },
+  innovation: { x: 12, z: CAMPUS_ROAD_Z + 1.5, h: -Math.PI / 2 },
+  pitch: { x: PITCH.x, z: 30, h: Math.PI },
 };
+
+function districtAt(x: number, z: number): AreaId | null {
+  if (z < -18 && Math.abs(x) < 34) return "digital";
+  if (x > 18 && Math.abs(z) < 32) return "creative";
+  if (x < -18 && Math.abs(z) < 32) return "marketing";
+  if (x < -28 && z > 36) return "pitch";
+  if (x > 20 && z > 40) return "innovation";
+  if (z > 38 && Math.abs(x) < 22) return "business";
+  if (Math.hypot(x, z) < 45) return "start";
+  return null;
+}
 
 /* ------------------------------------------------------------------ */
 /* World                                                               */
@@ -109,6 +147,8 @@ const TELEPORTS: Record<TeleportTarget, { x: number; z: number; h: number }> = {
 export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): WorldHandle {
   const resolve = opts.resolveAsset ?? ((p: string) => p);
   const isTouch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  const districtColor = (id: DistrictKey) => opts.districts.find((d) => d.id === id)?.color ?? PALETTE.brand;
+  const districtName = (id: DistrictKey) => opts.districts.find((d) => d.id === id)?.name ?? id;
 
   /* renderer ------------------------------------------------------- */
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch || window.devicePixelRatio < 2, powerPreference: "high-performance" });
@@ -121,7 +161,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(PALETTE.sky);
-  scene.fog = new THREE.Fog(PALETTE.sky, 70, 150);
+  scene.fog = new THREE.Fog(PALETTE.sky, 75, 160);
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 400);
 
@@ -133,22 +173,20 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   const shadowSize = isTouch ? 1024 : 2048;
   sun.shadow.mapSize.set(shadowSize, shadowSize);
   const sc = sun.shadow.camera as THREE.OrthographicCamera;
-  sc.left = -34;
-  sc.right = 34;
-  sc.top = 34;
-  sc.bottom = -34;
+  sc.left = -36;
+  sc.right = 36;
+  sc.top = 36;
+  sc.bottom = -36;
   sc.near = 1;
-  sc.far = 120;
+  sc.far = 130;
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   const SUN_OFFSET = new THREE.Vector3(-22, 40, 18);
 
   /* loading -------------------------------------------------------- */
-  const manager = new THREE.LoadingManager();
-  let loadTotal = 0;
-  manager.onProgress = (_url, loaded, total) => opts.onProgress?.(total ? loaded / total : 1);
-  manager.onLoad = () => readyOnce();
+  // Billboard images load lazily as you ride near them, so the loader only
+  // waits for the world itself. Keeping the hook lets assets join later.
   let readyFired = false;
   const readyOnce = () => {
     if (readyFired) return;
@@ -156,14 +194,19 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     opts.onProgress?.(1);
     opts.onReady?.();
   };
-  const texLoader = new THREE.TextureLoader(manager);
+  const texLoader = new THREE.TextureLoader();
 
   const physics = new PhysicsWorld();
+  physics.bounds = BOUNDS;
   const zones: Zone[] = [];
   const padMeshes = new Map<string, THREE.Mesh>();
   const r = rng(7);
   const exclusions: { x: number; z: number; r: number }[] = [];
   const exclude = (x: number, z: number, rad: number) => exclusions.push({ x, z, r: rad });
+
+  // for the mini-map
+  const mapRoads: { x: number; z: number; w: number; d: number }[] = [];
+  const mapBlocks: { x: number; z: number; w: number; d: number; color: string }[] = [];
 
   /* ground --------------------------------------------------------- */
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(420, 420), mat(PALETTE.earth, { flatShading: false }));
@@ -171,32 +214,22 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // grass patches
-  const grassGeo = new THREE.CircleGeometry(1, 7);
+  const patchGeo = new THREE.CircleGeometry(1, 7);
+  function patch(x: number, z: number, sx: number, sz: number, color: string, y = 0.01) {
+    const g = new THREE.Mesh(patchGeo, mat(color, { flatShading: false }));
+    g.rotation.x = -Math.PI / 2;
+    g.rotation.z = r() * Math.PI;
+    g.position.set(x, y, z);
+    g.scale.set(sx, sz, 1);
+    g.receiveShadow = true;
+    scene.add(g);
+  }
+  for (let i = 0; i < 60; i++) patch((r() - 0.5) * 220, (r() - 0.5) * 220, 4 + r() * 9, 3 + r() * 6, r() > 0.5 ? PALETTE.earthDark : "#cf7646", 0.005);
   for (let i = 0; i < 70; i++) {
     const x = (r() - 0.5) * 210;
     const z = (r() - 0.5) * 210;
     if (Math.abs(x) < 8 || Math.abs(z) < 8) continue;
-    const g = new THREE.Mesh(grassGeo, mat(r() > 0.5 ? PALETTE.grass : PALETTE.grassDark, { flatShading: false }));
-    g.rotation.x = -Math.PI / 2;
-    g.rotation.z = r() * Math.PI;
-    g.position.set(x, 0.01, z);
-    g.scale.set(3 + r() * 7, 2 + r() * 5, 1);
-    g.receiveShadow = true;
-    scene.add(g);
-  }
-
-  // darker murram patches and stones so the red earth isn't flat
-  for (let i = 0; i < 60; i++) {
-    const x = (r() - 0.5) * 220;
-    const z = (r() - 0.5) * 220;
-    const g = new THREE.Mesh(grassGeo, mat(r() > 0.5 ? PALETTE.earthDark : "#cf7646", { flatShading: false }));
-    g.rotation.x = -Math.PI / 2;
-    g.rotation.z = r() * Math.PI;
-    g.position.set(x, 0.005, z);
-    g.scale.set(4 + r() * 9, 3 + r() * 6, 1);
-    g.receiveShadow = true;
-    scene.add(g);
+    patch(x, z, 3 + r() * 7, 2 + r() * 5, r() > 0.5 ? PALETTE.grass : PALETTE.grassDark);
   }
   const stoneGeo = new THREE.DodecahedronGeometry(0.25, 0);
   for (let i = 0; i < 160; i++) {
@@ -214,24 +247,27 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   const roadMat = mat(PALETTE.road, { flatShading: false, roughness: 0.95 });
   const lineMat = new THREE.MeshBasicMaterial({ color: "#f3c623" });
   const curbMat = mat("#e9e1cf");
+  /** road centred at x,z; alongZ: runs north-south */
   function road(x: number, z: number, w: number, l: number, alongZ: boolean) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(alongZ ? w : l, alongZ ? l : w), roadMat);
     m.rotation.x = -Math.PI / 2;
     m.position.set(x, 0.02, z);
     m.receiveShadow = true;
     scene.add(m);
-    const len = l;
-    for (let d = -len / 2 + 2; d < len / 2 - 1; d += 4) {
+    mapRoads.push({ x, z, w: alongZ ? w : l, d: alongZ ? l : w });
+    for (let d = -l / 2 + 2; d < l / 2 - 1; d += 4) {
       const ln = new THREE.Mesh(new THREE.PlaneGeometry(alongZ ? 0.25 : 2, alongZ ? 2 : 0.25), lineMat);
       ln.rotation.x = -Math.PI / 2;
       ln.position.set(alongZ ? x : x + d, 0.03, alongZ ? z + d : z);
       scene.add(ln);
     }
   }
-  road(0, -57, 8, 90, true); // north
-  road(0, 33, 8, 22, true); // south to pitch
-  road(58, 0, 8, 92, false); // east
-  road(-58, 0, 8, 92, false); // west
+  road(0, -56, 8, 88, true); // north: digital
+  road(0, 56, 8, 88, true); // south: business
+  road(56, 0, 8, 88, false); // east: creative
+  road(-56, 0, 8, 88, false); // west: marketing
+  road(52, CAMPUS_ROAD_Z, 8, 88, false); // innovation campus
+  road(-27, 36, 7, 46, false); // track to the pitch & CV centre
 
   // roundabout
   const ring = new THREE.Mesh(new THREE.CircleGeometry(13, 40), roadMat);
@@ -239,6 +275,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   ring.position.y = 0.021;
   ring.receiveShadow = true;
   scene.add(ring);
+  mapRoads.push({ x: 0, z: 0, w: 26, d: 26 });
   const island = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.2, 0.3, 32), mat(PALETTE.grass));
   island.position.y = 0.15;
   island.receiveShadow = true;
@@ -262,57 +299,177 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     m.position.set(x, 0.04, z);
     scene.add(m);
   }
-  groundText(["WORK"], 0, -17, 7);
-  groundText(["ABOUT"], 17, 0, 7, -Math.PI / 2);
-  groundText(["CONTACT"], -17, 0, 7, Math.PI / 2);
-  groundText(["FOOTBALL"], 0, 40, 7, 0, PALETTE.brand);
 
-  /* welcome area --------------------------------------------------- */
+  /* zones / pads --------------------------------------------------- */
+  const padGeo = new THREE.CircleGeometry(1, 40);
+  const ringGeo = new THREE.RingGeometry(0.88, 1, 48);
+  function addPad(z: Zone, color: string = PALETTE.brand) {
+    zones.push(z);
+    const pad = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, depthWrite: false }));
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(z.x, 0.05, z.z);
+    pad.scale.setScalar(z.r);
+    const edge = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }));
+    edge.position.z = 0.001;
+    pad.add(edge);
+    scene.add(pad);
+    padMeshes.set(z.id, pad);
+    exclude(z.x, z.z, z.r + 1.5);
+  }
+
+  /* gateways ------------------------------------------------------- */
+  function gateway(id: DistrictKey, x: number, z: number, rotY: number) {
+    const tex = makeSignTexture({ title: districtName(id).toUpperCase(), bg: PALETTE.ink, accent: districtColor(id), width: 1024, height: 150, border: false });
+    const arch = createArch(tex, districtColor(id));
+    arch.position.set(x, 0, z);
+    arch.rotation.y = rotY;
+    scene.add(arch);
+    const c = Math.cos(rotY);
+    const s = Math.sin(rotY);
+    for (const px of [-5.5, 5.5]) physics.addCircle(x + px * c, z - px * s, 0.6);
+    exclude(x, z, 8);
+  }
+
+  /* exhibits: billboards with lazily loaded images ----------------- */
+  type Board = { screen: THREE.Mesh; poster: THREE.Texture; url?: string; tex?: THREE.Texture; state: "none" | "loading" | "ready"; x: number; z: number; w: number; h: number };
+  const boards: Board[] = [];
+
+  function exhibitBoard(e: WorldExhibit, x: number, z: number, rotY: number, padX: number, padZ: number) {
+    const color = districtColor(e.district);
+    const poster = makePosterTexture(e.title, e.subtitle, districtName(e.district));
+    const bb = createBillboard(poster, 8, 5, PALETTE.ink);
+    bb.group.position.set(x, 0, z);
+    bb.group.rotation.y = rotY;
+    scene.add(bb.group);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.25, 0.3), mat(color));
+    stripe.position.set(0, 2.05, 0.05);
+    bb.group.add(stripe);
+    const plateTex = makeSignTexture({ title: e.title, subtitle: e.subtitle, bg: PALETTE.ink, accent: color, width: 1024, height: 256, border: false });
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshBasicMaterial({ map: plateTex, toneMapped: false }));
+    plate.position.set(0, 1.15, 0.2);
+    bb.group.add(plate);
+    const c = Math.cos(rotY);
+    const s = Math.sin(rotY);
+    for (const px of [-3.4, 3.4]) physics.addCircle(x + px * c, z - px * s, 0.35);
+    exclude(x, z, 6.5);
+    boards.push({ screen: bb.screen, poster, url: e.image ? resolve(e.image) : undefined, state: "none", x, z, w: 8, h: 5 });
+    addPad({ id: `exhibit-${e.slug}`, type: "exhibit", slug: e.slug, district: e.district, title: e.title, subtitle: e.subtitle, x: padX, z: padZ, r: 2.5 }, color);
+  }
+
+  function fitCover(tex: THREE.Texture, w: number, h: number) {
+    const img = tex.image as { width: number; height: number };
+    const target = w / h;
+    const aspect = img.width / img.height;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    if (aspect > target) {
+      tex.repeat.set(target / aspect, 1);
+      tex.offset.set((1 - target / aspect) / 2, 0);
+    } else {
+      tex.repeat.set(1, aspect / target);
+      tex.offset.set(0, (1 - aspect / target) / 2);
+    }
+  }
+
+  let boardTimer = 0;
+  function updateBoards(dt: number, bx: number, bz: number) {
+    boardTimer -= dt;
+    if (boardTimer > 0) return;
+    boardTimer = 0.4;
+    for (const b of boards) {
+      if (!b.url) continue;
+      const d = Math.hypot(b.x - bx, b.z - bz);
+      const m = b.screen.material as THREE.MeshBasicMaterial;
+      if (d < 48 && b.state === "none") {
+        b.state = "loading";
+        texLoader.load(
+          b.url,
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = 4;
+            fitCover(tex, b.w, b.h);
+            b.tex = tex;
+            b.state = "ready";
+            m.map = tex;
+            m.needsUpdate = true;
+          },
+          undefined,
+          () => {
+            b.state = "ready"; // keep the painted poster
+          },
+        );
+      } else if (d > 85 && b.state === "ready" && b.tex) {
+        // free GPU memory for boards far away (matters on phones)
+        m.map = b.poster;
+        m.needsUpdate = true;
+        b.tex.dispose();
+        b.tex = undefined;
+        b.state = "none";
+      }
+    }
+  }
+
+  // shops for street life
+  const shopNames: [string, string, string][] = [
+    ["DESIGN DUKA", "Logos · Flyers · Brands", "#2e86c1"],
+    ["CODE & CO.", "Websites · Apps · POS", "#27ae60"],
+    ["MOTION SALON", "Edits · Reels · 3D", "#8e44ad"],
+    ["PIXEL HARDWARE", "Every pixel in stock", "#e67e22"],
+    ["BRAND CLINIC", "We treat weak brands", "#c0392b"],
+    ["CHAPATI CORNER", "Fuel for designers", "#16a085"],
+    ["MOBILE MONEY", "Send · Withdraw · Airtime", "#f1c40f"],
+    ["PAINT & PRINT", "Colour for every wall", "#1f8a8a"],
+  ];
+  let shopIdx = 0;
+  function shop(x: number, z: number, w: number, d: number, rotY = 0) {
+    const [name, sub, wall] = shopNames[shopIdx % shopNames.length];
+    shopIdx++;
+    const h = 3.6 + r() * 2.5;
+    const yellow = wall === "#f1c40f";
+    const signTex = makeSignTexture({ title: name, subtitle: sub, bg: yellow ? "#151515" : "#f5efe0", fg: yellow ? "#f1c40f" : wall, accent: PALETTE.ink, width: 1024, height: 300 });
+    const b = createBuilding({ w, d, h, wall, signTex });
+    b.position.set(x, 0, z);
+    b.rotation.y = rotY;
+    scene.add(b);
+    const rotated = Math.abs(Math.sin(rotY)) > 0.5;
+    const hw = rotated ? d / 2 : w / 2;
+    const hd = rotated ? w / 2 : d / 2;
+    physics.addBox(x, z, hw, hd);
+    mapBlocks.push({ x, z, w: hw * 2, d: hd * 2, color: "#9b5a38" });
+    exclude(x, z, Math.max(w, d) * 0.75 + 1.5);
+  }
+
+  const byDistrict = (id: DistrictKey) => opts.exhibits.filter((e) => e.district === id);
+
+  /* START: welcome, CV centre, contact ------------------------------ */
   const welcomeTex = makeSignTexture({
     title: "Hi, I'm Joel",
-    subtitle: "Designer & Developer · Kampala",
-    small: "Hop on the boda and ride around to explore my work",
+    subtitle: "Creative · Marketing · Technology",
+    small: "Kampala, Uganda — ride the boda to explore my work",
     bg: PALETTE.ink,
   });
   const welcome = createBillboard(welcomeTex, 9, 4.5);
-  welcome.group.position.set(-13, 0, 18);
+  welcome.group.position.set(-13, 0, 16);
   welcome.group.rotation.y = 0.35;
   scene.add(welcome.group);
-  physics.addCircle(-13 + Math.cos(0.35) * -3.9, 18 + Math.sin(0.35) * 3.9, 0.35);
-  physics.addCircle(-13 + Math.cos(0.35) * 3.9, 18 - Math.sin(0.35) * 3.9, 0.35);
-  exclude(-13, 18, 7);
-
-  const controlsTex = makeSignTexture({
-    title: isTouch ? "Drag to ride" : "W A S D  /  ← ↑ → ↓",
-    subtitle: isTouch ? "Hold ⚡ to boost · tap 📯 to hoot" : "Shift boost · Space brake · H hoot",
-    small: isTouch ? "Stop on a glowing pad, then tap to open" : "Stop on a glowing pad and press Enter",
-    bg: PALETTE.brand,
-    fg: PALETTE.ink,
-    accent: PALETTE.ink,
-  });
-  const controlsBoard = createBillboard(controlsTex, 7, 3.5);
-  controlsBoard.group.position.set(13, 0, 34);
-  controlsBoard.group.rotation.y = -0.35;
-  controlsBoard.group.scale.setScalar(0.8);
-  scene.add(controlsBoard.group);
-  physics.addCircle(13 - 2.4, 34 - 1, 0.3);
-  physics.addCircle(13 + 2.4, 34 + 1, 0.3);
-  exclude(13, 34, 6);
+  physics.addCircle(-13 - Math.cos(0.35) * 3.9, 16 + Math.sin(0.35) * 3.9, 0.35);
+  physics.addCircle(-13 + Math.cos(0.35) * 3.9, 16 - Math.sin(0.35) * 3.9, 0.35);
+  exclude(-13, 16, 7);
 
   // boda stage
   const stageSign = makeSignTexture({ title: "BODA STAGE", subtitle: "Safe rides · Helmets on", bg: "#1f4fa8", width: 1024, height: 320 });
   const stageBoard = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.4), new THREE.MeshBasicMaterial({ map: stageSign, toneMapped: false }));
-  stageBoard.position.set(11, 3.2, 16);
+  stageBoard.position.set(11, 3.2, 15);
   scene.add(stageBoard);
   const shelter = new THREE.Mesh(new THREE.BoxGeometry(7, 0.15, 3.5), mat("#8c8c8c", { metalness: 0.3 }));
-  shelter.position.set(11, 2.6, 18);
+  shelter.position.set(11, 2.6, 17);
   shelter.castShadow = true;
   scene.add(shelter);
   for (const [px, pz] of [
-    [7.8, 16.4],
-    [14.2, 16.4],
-    [7.8, 19.6],
-    [14.2, 19.6],
+    [7.8, 15.4],
+    [14.2, 15.4],
+    [7.8, 18.6],
+    [14.2, 18.6],
   ]) {
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.6, 0.15), mat("#555"));
     post.position.set(px, 1.3, pz);
@@ -322,226 +479,127 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   }
   ["#1f6f3f", "#c8102e", "#1f4fa8"].forEach((c, i) => {
     const b = createParkedBoda(c);
-    b.position.set(9 + i * 2, 0, 18.5);
+    b.position.set(9 + i * 2, 0, 17.5);
     b.rotation.y = -0.4;
     scene.add(b);
-    physics.addCircle(9 + i * 2, 18.5, 0.8);
+    physics.addCircle(9 + i * 2, 17.5, 0.8);
   });
-  exclude(11, 18, 6);
-
-  // rolex stand (the Ugandan street food, not the watch)
-  const rolexSign = makeSignTexture({ title: "ROLEX", subtitle: "Chapati + eggs · 2,000/=", bg: "#f5efe0", fg: "#c0392b", accent: PALETTE.ink, width: 768, height: 256 });
-  const rolex = createRolexStand(rolexSign);
-  rolex.position.set(-9.5, 0, 31);
-  rolex.rotation.y = 0.2;
-  scene.add(rolex);
-  physics.addBox(-9.5, 31, 1.2, 0.7);
-  exclude(-9.5, 31, 4);
+  exclude(11, 17, 6);
 
   // signpost
-  const postTex = makeSignTexture({ title: "↑ WORK", subtitle: "← CONTACT   ABOUT →", small: "↓ FOOTBALL", bg: "#1b6b3a", width: 768, height: 420 });
+  const postTex = makeSignTexture({ title: "↑ DIGITAL", subtitle: "← MARKETING   CREATIVE →", small: "↓ BUSINESS · INNOVATION", bg: "#1b6b3a", width: 768, height: 420 });
   const signPost = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.4, 8), mat("#9a9a9a", { metalness: 0.5 }));
   pole.position.y = 1.7;
-  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.4), new THREE.MeshBasicMaterial({ map: postTex, toneMapped: false }));
+  pole.castShadow = true;
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.5), new THREE.MeshBasicMaterial({ map: postTex, toneMapped: false }));
   plate.position.y = 3.2;
   signPost.add(pole, plate);
-  signPost.position.set(5.5, 0, 22);
+  signPost.position.set(5.5, 0, 24);
   signPost.rotation.y = -0.2;
-  pole.castShadow = true;
   scene.add(signPost);
-  physics.addCircle(5.5, 22, 0.15);
+  physics.addCircle(5.5, 24, 0.15);
 
-  /* zones / pads --------------------------------------------------- */
-  const padGeo = new THREE.CircleGeometry(1, 40);
-  const ringGeo = new THREE.RingGeometry(0.88, 1, 48);
-  function addPad(z: Zone) {
-    zones.push(z);
-    const pad = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color: PALETTE.brand, transparent: true, opacity: 0.28, depthWrite: false }));
-    pad.rotation.x = -Math.PI / 2;
-    pad.position.set(z.x, 0.05, z.z);
-    pad.scale.setScalar(z.r);
-    const edge = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: PALETTE.brand, transparent: true, opacity: 0.95, depthWrite: false }));
-    edge.position.z = 0.001;
-    pad.add(edge);
-    scene.add(pad);
-    padMeshes.set(z.id, pad);
-    exclude(z.x, z.z, z.r + 1.5);
-  }
+  // Achievements Centre (CV)
+  const cvSign = makeSignTexture({ title: "ACHIEVEMENTS CENTRE", subtitle: "CV · Experience · Education · Skills", bg: PALETTE.cream, fg: PALETTE.ink, accent: "#b37400", width: 1024, height: 300 });
+  const cvBuilding = createBuilding({ w: 12, d: 7, h: 6.5, wall: PALETTE.ink, roof: PALETTE.brand, signTex: cvSign });
+  cvBuilding.position.set(-26, 0, 27);
+  scene.add(cvBuilding);
+  physics.addBox(-26, 27, 6, 3.5);
+  mapBlocks.push({ x: -26, z: 27, w: 12, d: 7, color: PALETTE.ink });
+  exclude(-26, 27, 9);
+  addPad({ id: "cv", type: "cv", title: "Achievements Centre", subtitle: "CV, experience, education & skills", x: -26, z: 34.5, r: 2.8 });
 
-  /* work district (north) ----------------------------------------- */
-  const billboardScreens: THREE.Mesh[] = [];
-  opts.projects.forEach((p, i) => {
+  // Contact kiosk
+  const kioskSign = makeSignTexture({ title: "CONTACT CENTRE", subtitle: "Email · Phone · WhatsApp", bg: PALETTE.ink, width: 1024, height: 256 });
+  const kiosk = createKiosk(kioskSign);
+  kiosk.position.set(24, 0, 27);
+  scene.add(kiosk);
+  physics.addBox(24, 27, 2.1, 1.6);
+  mapBlocks.push({ x: 24, z: 27, w: 4.2, d: 3.2, color: PALETTE.brand });
+  exclude(24, 27, 5);
+  addPad({ id: "contact", type: "contact", title: "Contact Centre", subtitle: "Let's work together", x: 24, z: 33, r: 2.6 });
+
+  // rolex stand (Ugandan street food, not the watch)
+  const rolexSign = makeSignTexture({ title: "ROLEX", subtitle: "Chapati + eggs · 2,000/=", bg: "#f5efe0", fg: "#c0392b", accent: PALETTE.ink, width: 768, height: 256 });
+  const rolex = createRolexStand(rolexSign);
+  rolex.position.set(9, 0, 30);
+  rolex.rotation.y = -0.2;
+  scene.add(rolex);
+  physics.addBox(9, 30, 1.2, 0.7);
+  exclude(9, 30, 4);
+
+  /* DIGITAL DISTRICT (north) --------------------------------------- */
+  gateway("digital", 0, -19, 0);
+  groundText(["DIGITAL"], 0, -15, 7);
+  byDistrict("digital").forEach((e, i) => {
     const side = i % 2 === 0 ? -1 : 1;
-    const zPos = -30 - i * 15;
-    const xPos = side * 14;
-    const placeholder = makePosterTexture(p.title, p.category, p.year);
-    const bb = createBillboard(placeholder, 9, 5.6);
-    bb.group.position.set(xPos, 0, zPos);
-    bb.group.rotation.y = side * -0.55;
-    scene.add(bb.group);
-    billboardScreens.push(bb.screen);
-    // collide on the posts only, you can ride under the board
-    const c = Math.cos(bb.group.rotation.y);
-    const s = Math.sin(bb.group.rotation.y);
-    for (const px of [-3.9, 3.9]) physics.addCircle(xPos + px * c, zPos - px * s, 0.35);
-    exclude(xPos, zPos, 7);
-
-    if (p.image) {
-      loadTotal++;
-      texLoader.load(
-        resolve(p.image),
-        (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.anisotropy = 4;
-          // cover-fit into a 9:5.6 board
-          const img = tex.image as { width: number; height: number };
-          const target = 9 / 5.6;
-          const aspect = img.width / img.height;
-          if (aspect > target) {
-            tex.repeat.set(target / aspect, 1);
-            tex.offset.set((1 - target / aspect) / 2, 0);
-          } else {
-            tex.repeat.set(1, aspect / target);
-            tex.offset.set(0, (1 - aspect / target) / 2);
-          }
-          (bb.screen.material as THREE.MeshBasicMaterial).map = tex;
-          (bb.screen.material as THREE.MeshBasicMaterial).needsUpdate = true;
-        },
-        undefined,
-        () => {
-          /* keep the painted poster */
-        },
-      );
-    }
-
-    // name plate under the board
-    const plateTex = makeSignTexture({ title: p.title, subtitle: p.category, bg: PALETTE.ink, width: 1024, height: 256, border: false });
-    const plateMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshBasicMaterial({ map: plateTex, toneMapped: false }));
-    plateMesh.position.set(0, 1.2, 0.2);
-    bb.group.add(plateMesh);
-
-    addPad({
-      id: `project-${p.slug}`,
-      type: "project",
-      slug: p.slug,
-      title: p.title,
-      subtitle: p.category,
-      x: side * 7.5,
-      z: zPos + 4,
-      r: 2.6,
-    });
+    const z = -30 - Math.floor(i / 2) * 15;
+    exhibitBoard(e, side * 14, z, side * -0.5, side * 7.5, z + 4);
   });
-
-  const workEnd = -30 - opts.projects.length * 15;
-
-  // shops lining the north road
-  const shopNames: [string, string, string][] = [
-    ["DESIGN DUKA", "Logos · Flyers · Brands", "#2e86c1"],
-    ["CODE & CO.", "Websites · Apps · POS", "#27ae60"],
-    ["MOTION SALON", "Edits · Reels · 3D", "#8e44ad"],
-    ["PIXEL HARDWARE", "Every pixel in stock", "#e67e22"],
-    ["BRAND CLINIC", "We treat weak brands", "#c0392b"],
-    ["NOVA WORKS", "Built for brands on the rise", PALETTE.ink],
-    ["CHAPATI CORNER", "Fuel for designers", "#16a085"],
-    ["MOBILE MONEY", "Send · Withdraw · Airtime", "#f1c40f"],
-  ];
-  let shopIdx = 0;
-  function shop(x: number, z: number, w: number, d: number, rotY = 0) {
-    const [name, sub, wall] = shopNames[shopIdx % shopNames.length];
-    shopIdx++;
-    const h = 3.6 + r() * 2.5;
-    const signTex = makeSignTexture({ title: name, subtitle: sub, bg: wall === "#f1c40f" ? "#151515" : "#f5efe0", fg: wall === "#f1c40f" ? "#f1c40f" : wall === PALETTE.ink ? "#151515" : wall, accent: PALETTE.ink, width: 1024, height: 300 });
-    const b = createBuilding({ w, d, h, wall, signTex });
-    b.position.set(x, 0, z);
-    b.rotation.y = rotY;
-    scene.add(b);
-    const rotated = Math.abs(Math.sin(rotY)) > 0.5;
-    physics.addBox(x, z, rotated ? d / 2 : w / 2, rotated ? w / 2 : d / 2);
-    exclude(x, z, Math.max(w, d) * 0.75 + 1.5);
-  }
-  for (let z = -28; z > workEnd - 4; z -= 14) {
+  const digitalEnd = -30 - Math.ceil(byDistrict("digital").length / 2) * 15;
+  for (let z = -28; z > -96; z -= 14) {
     shop(-27, z, 9, 6, Math.PI / 2);
     shop(27, z - 7, 9, 6, -Math.PI / 2);
   }
 
-  /* about district (east) ----------------------------------------- */
-  const aboutPoster = makePosterTexture("About Joel", "Graphic design · Marketing · Web dev", "5+ years");
-  const aboutBoard = createBillboard(aboutPoster, 7, 5);
-  aboutBoard.group.position.set(36, 0, -14);
-  scene.add(aboutBoard.group);
-  physics.addCircle(36 - 2.9, -14, 0.35);
-  physics.addCircle(36 + 2.9, -14, 0.35);
-  exclude(36, -14, 6);
-  loadTotal++;
-  texLoader.load(
-    resolve("/images/joel-hero.png"),
-    (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const img = tex.image as { width: number; height: number };
-      const target = 7 / 5;
-      const aspect = img.width / img.height;
-      if (aspect < target) {
-        tex.repeat.set(1, aspect / target);
-        tex.offset.set(0, (1 - aspect / target) * 0.75);
-      }
-      (aboutBoard.screen.material as THREE.MeshBasicMaterial).map = tex;
-      (aboutBoard.screen.material as THREE.MeshBasicMaterial).needsUpdate = true;
-    },
-    undefined,
-    () => {},
-  );
-  addPad({ id: "about", type: "about", title: "About Joel", subtitle: "Who I am & what I do", x: 36, z: -8.5, r: 2.6 });
-
-  // skills market: one crate per tool, stacked so you can knock them over
-  const marketSign = makeSignTexture({ title: "SKILLS MARKET", subtitle: "Knock a crate, learn a tool", bg: "#f5efe0", fg: "#1b6b3a", accent: PALETTE.ink, width: 1024, height: 300 });
-  const marketBoard = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.75), new THREE.MeshBasicMaterial({ map: marketSign, toneMapped: false }));
-  marketBoard.position.set(52, 2.6, -16.5);
-  scene.add(marketBoard);
-  const marketBack = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.2, 0.2), mat(PALETTE.ink));
-  marketBack.position.set(52, 2.6, -16.65);
-  scene.add(marketBack);
-  for (const px of [49, 55]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.6, 0.2), mat("#555"));
-    post.position.set(px, 1.8, -16.8);
-    scene.add(post);
-    physics.addCircle(px, -16.8, 0.2);
+  /* CREATIVE DISTRICT (east) --------------------------------------- */
+  gateway("creative", 19, 0, -Math.PI / 2);
+  groundText(["CREATIVE"], 15, 0, 7, -Math.PI / 2);
+  byDistrict("creative").forEach((e, i) => {
+    const side = i % 2 === 0 ? -1 : 1; // -1 north of the road, 1 south
+    const x = 28 + Math.floor(i / 2) * 15;
+    exhibitBoard(e, x, side * 14, 0, x, side * 7.6);
+  });
+  for (let x = 30; x < 98; x += 15) {
+    shop(x, -27, 9, 6, 0);
+    if (x < 90) shop(x + 7, 27, 9, 6, Math.PI);
   }
-  exclude(52, -11, 8);
 
-  const shopRowE: [number, number][] = [
-    [72, -14],
-    [86, -14],
-    [66, 14],
-    [80, 14],
-    [94, 14],
-  ];
-  shopRowE.forEach(([x, z]) => shop(x, z, 9, 6, z > 0 ? Math.PI : 0));
+  /* MARKETING CITY (west) ------------------------------------------ */
+  gateway("marketing", -19, 0, Math.PI / 2);
+  groundText(["MARKETING"], -15, 0, 7, Math.PI / 2);
+  byDistrict("marketing").forEach((e, i) => {
+    const side = i % 2 === 0 ? -1 : 1;
+    const x = -28 - Math.floor(i / 2) * 15;
+    exhibitBoard(e, x, side * 14, 0, x, side * 7.6);
+  });
+  for (let x = -30; x > -98; x -= 15) shop(x, -27, 9, 6, 0);
+  for (let x = -76; x > -98; x -= 15) shop(x, 27, 9, 6, Math.PI);
 
-  /* contact (west) ------------------------------------------------- */
-  const kioskSign = makeSignTexture({ title: "SAY HELLO", subtitle: "hello@joelbutala.com", bg: PALETTE.ink, width: 1024, height: 256 });
-  const kiosk = createKiosk(kioskSign);
-  kiosk.position.set(-38, 0, -13);
-  scene.add(kiosk);
-  physics.addBox(-38, -13, 2.1, 1.6);
-  exclude(-38, -13, 5);
-  addPad({ id: "contact", type: "contact", title: "Contact", subtitle: "Let's work together", x: -38, z: -7, r: 2.6 });
-  const shopRowW: [number, number][] = [
-    [-56, -14],
-    [-70, -14],
-    [-84, -14],
-    [-60, 14],
-    [-76, 14],
-  ];
-  shopRowW.forEach(([x, z]) => shop(x, z, 9, 6, z > 0 ? Math.PI : 0));
+  /* BUSINESS DISTRICT (south) -------------------------------------- */
+  gateway("business", 0, 41, Math.PI);
+  groundText(["BUSINESS"], 0, 45, 7);
+  byDistrict("business").forEach((e, i) => {
+    const side = i % 2 === 0 ? -1 : 1;
+    // rows skip the campus road junction at z≈58
+    const z = [47, 71, 84, 97][Math.floor(i / 2)] ?? 97;
+    exhibitBoard(e, side * 14, z, side * -0.5, side * 7.5, z + 4);
+  });
+
+  /* INNOVATION LAB (south-east campus) ----------------------------- */
+  gateway("innovation", 11, CAMPUS_ROAD_Z, -Math.PI / 2);
+  byDistrict("innovation").forEach((e, i) => {
+    const row = i % 2 === 0 ? -1 : 1; // north row / south row of the campus road
+    const x = 26 + Math.floor(i / 2) * 15;
+    exhibitBoard(e, x, CAMPUS_ROAD_Z + row * 14, 0, x, CAMPUS_ROAD_Z + row * 7.6);
+  });
+  // lab dome
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat("#ece6f7", { flatShading: true }));
+  dome.position.set(96, 0, CAMPUS_ROAD_Z - 16);
+  dome.castShadow = true;
+  scene.add(dome);
+  physics.addCircle(96, CAMPUS_ROAD_Z - 16, 6);
+  mapBlocks.push({ x: 96, z: CAMPUS_ROAD_Z - 16, w: 12, d: 12, color: districtColor("innovation") });
+  exclude(96, CAMPUS_ROAD_Z - 16, 9);
 
   /* matatus parked roadside --------------------------------------- */
   const matatuSpots: [number, number, number][] = [
-    [-7, -40, 0],
-    [7.2, -80, Math.PI],
-    [44, 7, Math.PI / 2],
-    [-46, -7, -Math.PI / 2],
-    [-7.5, 14, 0.1],
+    [-7.2, -33.5, 0],
+    [7.2, -86, Math.PI],
+    [92, 7, Math.PI / 2],
+    [-92, -7, -Math.PI / 2],
+    [-7.5, 13, 0.1],
   ];
   matatuSpots.forEach(([x, z, ry], i) => {
     const m = createMatatu(i % 2 ? "#c8102e" : "#1f4fa8");
@@ -553,87 +611,78 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     exclude(x, z, 4);
   });
 
-  /* football pitch (south) ---------------------------------------- */
-  const pitchZ = 64;
+  /* football pitch (south-west) ----------------------------------- */
+  const pitchX = PITCH.x;
+  const pitchZ = PITCH.z;
   const pitch = new THREE.Mesh(new THREE.PlaneGeometry(30, 40), mat("#6aa33a", { flatShading: false }));
   pitch.rotation.x = -Math.PI / 2;
-  pitch.position.set(0, 0.025, pitchZ);
+  pitch.position.set(pitchX, 0.025, pitchZ);
   pitch.receiveShadow = true;
   scene.add(pitch);
+  mapBlocks.push({ x: pitchX, z: pitchZ, w: 30, d: 40, color: "#6aa33a" });
   const lineWhite = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.85 });
   const pLines: [number, number, number, number][] = [
-    [0, pitchZ - 19.8, 30, 0.25],
-    [0, pitchZ + 19.8, 30, 0.25],
-    [-14.8, pitchZ, 0.25, 40],
-    [14.8, pitchZ, 0.25, 40],
-    [0, pitchZ, 30, 0.25],
+    [0, -19.8, 30, 0.25],
+    [0, 19.8, 30, 0.25],
+    [-14.8, 0, 0.25, 40],
+    [14.8, 0, 0.25, 40],
+    [0, 0, 30, 0.25],
   ];
   pLines.forEach(([x, z, w, l]) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), lineWhite);
     m.rotation.x = -Math.PI / 2;
-    m.position.set(x, 0.035, z);
+    m.position.set(pitchX + x, 0.035, pitchZ + z);
     scene.add(m);
   });
   const circle = new THREE.Mesh(new THREE.RingGeometry(4.4, 4.65, 40), lineWhite);
   circle.rotation.x = -Math.PI / 2;
-  circle.position.set(0, 0.035, pitchZ);
+  circle.position.set(pitchX, 0.035, pitchZ);
   scene.add(circle);
   const goal = createGoal();
   const goalZ = pitchZ + 19.8;
-  goal.position.set(0, 0, goalZ);
+  goal.position.set(pitchX, 0, goalZ);
   goal.rotation.y = Math.PI; // net extends away from the pitch
   scene.add(goal);
-  physics.addCircle(-3.6, goalZ, 0.2);
-  physics.addCircle(3.6, goalZ, 0.2);
-  physics.addBox(0, goalZ + 1.9, 3.7, 0.1);
-  physics.addBox(-3.7, goalZ + 0.95, 0.1, 1);
-  physics.addBox(3.7, goalZ + 0.95, 0.1, 1);
-  exclude(0, pitchZ, 24);
-  const pitchSign = makeSignTexture({ title: "SCORE A GOAL", subtitle: "Push the ball into the net", bg: "#1b6b3a", width: 1024, height: 300 });
-  const pitchBoard = createBillboard(pitchSign, 6, 1.8);
-  pitchBoard.group.position.set(-19, -1.6, pitchZ + 6);
-  pitchBoard.group.rotation.y = 0.6;
-  scene.add(pitchBoard.group);
-  physics.addCircle(-19 - 2.5 * Math.cos(0.6), pitchZ + 6 + 2.5 * Math.sin(0.6), 0.3);
-  physics.addCircle(-19 + 2.5 * Math.cos(0.6), pitchZ + 6 - 2.5 * Math.sin(0.6), 0.3);
-  addPad({ id: "pitch", type: "pitch", title: "Football", subtitle: "Score a goal for a surprise", x: 9, z: 47, r: 2 });
+  physics.addCircle(pitchX - 3.6, goalZ, 0.2);
+  physics.addCircle(pitchX + 3.6, goalZ, 0.2);
+  physics.addBox(pitchX, goalZ + 1.9, 3.7, 0.1);
+  physics.addBox(pitchX - 3.7, goalZ + 0.95, 0.1, 1);
+  physics.addBox(pitchX + 3.7, goalZ + 0.95, 0.1, 1);
+  exclude(pitchX, pitchZ, 25);
+  addPad({ id: "pitch", type: "pitch", title: "Football", subtitle: "Score a goal for a surprise", x: pitchX + 12, z: 42, r: 2 });
 
   /* ramps ---------------------------------------------------------- */
-  function ramp(x: number, z: number, hw: number, hl: number, height: number, dir: -1 | 1) {
-    physics.ramps.push({ x, z, hw, hl, height, dir });
-    // wedge geometry
+  function ramp(x: number, z: number, hw: number, hl: number, height: number, axis: "x" | "z", dir: -1 | 1) {
+    physics.ramps.push({ x, z, hw, hl, height, axis, dir });
+    // built rising toward -z, then turned to face its direction
     const geo = new THREE.BufferGeometry();
-    const zl = dir === -1 ? hl : -hl; // low end z (local)
-    const zh = -zl; // high end
-    const v = new Float32Array([
-      // bottom quad corners low end (y=0) and high end top (y=h) and high end bottom
-      -hw, 0, zl, hw, 0, zl, hw, height, zh, -hw, height, zh, -hw, 0, zh, hw, 0, zh,
-    ]);
-    const idx = dir === -1
-      ? [0, 1, 2, 0, 2, 3, 3, 2, 5, 3, 5, 4, 0, 3, 4, 1, 5, 2]
-      : [0, 2, 1, 0, 3, 2, 3, 5, 2, 3, 4, 5, 0, 4, 3, 1, 2, 5];
+    const v = new Float32Array([-hw, 0, hl, hw, 0, hl, hw, height, -hl, -hw, height, -hl, -hw, 0, -hl, hw, 0, -hl]);
     geo.setAttribute("position", new THREE.BufferAttribute(v, 3));
-    geo.setIndex(idx);
+    geo.setIndex([0, 1, 2, 0, 2, 3, 3, 2, 5, 3, 5, 4, 0, 3, 4, 1, 5, 2]);
     geo.computeVertexNormals();
+    const g = new THREE.Group();
     const m = new THREE.Mesh(geo, mat(PALETTE.brand, { side: THREE.DoubleSide }));
-    m.position.set(x, 0, z);
     m.castShadow = true;
     m.receiveShadow = true;
-    scene.add(m);
-    // stripes on the ramp
+    g.add(m);
+    const tilt = Math.atan(height / (2 * hl));
     for (let i = 0; i < 3; i++) {
       const t = (i + 0.5) / 3;
       const s = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, 0.35), new THREE.MeshBasicMaterial({ color: PALETTE.ink }));
-      const lz = zl + (zh - zl) * t;
-      s.position.set(x, t * height + 0.03, z + lz);
-      s.rotation.x = -Math.PI / 2 + (dir === -1 ? Math.atan(height / (2 * hl)) : -Math.atan(height / (2 * hl)));
-      scene.add(s);
+      s.position.set(0, t * height + 0.03, hl - 2 * hl * t);
+      s.rotation.x = -Math.PI / 2 + tilt;
+      g.add(s);
     }
+    g.position.set(x, 0, z);
+    g.rotation.y = axis === "z" ? (dir === -1 ? 0 : Math.PI) : dir === -1 ? Math.PI / 2 : -Math.PI / 2;
+    scene.add(g);
+    mapBlocks.push({ x, z, w: axis === "z" ? hw * 2 : hl * 2, d: axis === "z" ? hl * 2 : hw * 2, color: PALETTE.brand });
     exclude(x, z, Math.max(hw, hl) + 3);
   }
-  ramp(-26, 44, 2.6, 4.5, 1.9, -1);
-  ramp(26, 30, 2.6, 4.5, 1.9, 1);
-  ramp(0, -50, 3.2, 5, 2.2, -1);
+  ramp(0, -52, 3.2, 5, 2.2, "z", -1);
+  ramp(48, CAMPUS_ROAD_Z, 3.2, 5, 2.2, "x", 1);
+  ramp(pitchX, 36, 3, 4.5, 1.8, "z", 1);
+  ramp(-60, 0, 3.2, 5, 2.2, "x", -1);
 
   /* props ---------------------------------------------------------- */
   function addProp(model: THREE.Object3D, x: number, z: number, o: { r: number; h: number; mass: number; bounce?: number; kind: string; ball?: boolean; yaw?: number }) {
@@ -670,42 +719,42 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     return p;
   }
 
-  // tool crates in the market, stacked
+  // skill crates by the Achievements Centre
   const toolColors = ["#d6402b", "#2e86c1", "#27ae60", "#8e44ad", "#e67e22", "#151515", "#16a085"];
   opts.tools.forEach((t, i) => {
     const row = Math.floor(i / 5);
     const col = i % 5;
     const color = toolColors[i % toolColors.length];
-    const tex = makeLabelTexture(t, color);
-    const crate = createCrate(tex, color, 0.95);
-    addProp(crate, 48 + col * 1.05 + (row % 2) * 0.5, -12.5 + row * 1.1, { r: 0.55, h: 0.95, mass: 1.2, kind: "crate", yaw: 0 });
+    const crate = createCrate(makeLabelTexture(t, color), color, 0.95);
+    addProp(crate, -42 + col * 1.05 + (row % 2) * 0.5, 29 + row * 1.1, { r: 0.55, h: 0.95, mass: 1.2, kind: "crate", yaw: 0 });
   });
+  exclude(-40, 30, 5);
 
   // cone slalom by the pitch
-  for (let i = 0; i < 7; i++) addProp(createCone(), -10, 48 + i * 4, { r: 0.3, h: 0.8, mass: 0.4, bounce: 0.4, kind: "cone", yaw: 0 });
-  // cones guarding the ramp up north
-  for (let i = -2; i <= 2; i++) addProp(createCone(), i * 1.6, workEnd + 2, { r: 0.3, h: 0.8, mass: 0.4, kind: "cone", yaw: 0 });
+  for (let i = 0; i < 7; i++) addProp(createCone(), pitchX - 18, 48 + i * 5, { r: 0.3, h: 0.8, mass: 0.4, bounce: 0.4, kind: "cone", yaw: 0 });
+  // cones closing the digital road
+  for (let i = -2; i <= 2; i++) addProp(createCone(), i * 1.6, digitalEnd - 4, { r: 0.3, h: 0.8, mass: 0.4, kind: "cone", yaw: 0 });
 
-  // jerrycans by the kiosk and rolex stand
+  // jerrycans by the kiosk and the rolex stand
   const jerryColors = ["#f2c200", "#f2c200", "#2e86c1", "#27ae60"];
-  for (let i = 0; i < 6; i++) addProp(createJerrycan(jerryColors[i % 4]), -41 + (i % 3) * 0.7, -9.6 + Math.floor(i / 3) * 0.6, { r: 0.32, h: 0.7, mass: 0.6, kind: "jerrycan" });
-  for (let i = 0; i < 4; i++) addProp(createJerrycan(jerryColors[i % 4]), -12.5 + i * 0.7, 33.2, { r: 0.32, h: 0.7, mass: 0.6, kind: "jerrycan" });
+  for (let i = 0; i < 6; i++) addProp(createJerrycan(jerryColors[i % 4]), 27.5 + (i % 3) * 0.7, 29 + Math.floor(i / 3) * 0.6, { r: 0.32, h: 0.7, mass: 0.6, kind: "jerrycan" });
+  for (let i = 0; i < 4; i++) addProp(createJerrycan(jerryColors[i % 4]), 11 + i * 0.7, 31.8, { r: 0.32, h: 0.7, mass: 0.6, kind: "jerrycan" });
 
   // soda crates at the boda stage
   for (let i = 0; i < 6; i++) {
     const c = createCrate(undefined, i % 2 ? "#c8102e" : "#1f4fa8", 0.7);
-    addProp(c, 15.5 + (i % 2) * 0.75, 21.5 + Math.floor(i / 2) * 0.75, { r: 0.4, h: 0.7, mass: 0.8, kind: "crate" });
+    addProp(c, 15.5 + (i % 2) * 0.75, 20.5 + Math.floor(i / 2) * 0.75, { r: 0.4, h: 0.7, mass: 0.8, kind: "crate" });
   }
 
-  const ball = addProp(createBall(), 0, pitchZ, { r: 0.42, h: 0.84, mass: 0.35, bounce: 0.7, kind: "ball", ball: true });
+  const ball = addProp(createBall(), pitchX, pitchZ, { r: 0.42, h: 0.84, mass: 0.35, bounce: 0.7, kind: "ball", ball: true });
 
   /* trees, matooke and the horizon -------------------------------- */
+  function onRoad(x: number, z: number, pad: number) {
+    for (const rd of mapRoads) if (Math.abs(x - rd.x) < rd.w / 2 + pad && Math.abs(z - rd.z) < rd.d / 2 + pad) return true;
+    return false;
+  }
   function free(x: number, z: number, rad: number) {
-    if (Math.abs(x) < 7 + rad || Math.abs(z) < 7 + rad) {
-      // roads (north/south/east/west)
-      if (Math.abs(x) < 7 + rad && (z < -10 || (z > 10 && z < 46))) return false;
-      if (Math.abs(z) < 7 + rad && Math.abs(x) > 10) return false;
-    }
+    if (onRoad(x, z, rad + 2.5)) return false;
     for (const e of exclusions) if (Math.hypot(x - e.x, z - e.z) < e.r + rad) return false;
     for (const c of physics.colliders) {
       if (c.kind === "box" && Math.abs(x - c.x) < c.hw + rad + 1 && Math.abs(z - c.z) < c.hd + rad + 1) return false;
@@ -713,9 +762,9 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     return true;
   }
   let placed = 0;
-  for (let tries = 0; tries < 1600 && placed < 110; tries++) {
-    const x = (r() - 0.5) * 200;
-    const z = (r() - 0.5) * 200;
+  for (let tries = 0; tries < 2000 && placed < 110; tries++) {
+    const x = (r() - 0.5) * 204;
+    const z = (r() - 0.5) * 204;
     if (!free(x, z, 1.6)) continue;
     const banana = r() > 0.55;
     const s = 0.8 + r() * 0.6;
@@ -736,7 +785,6 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     hill.scale.y = 0.55;
     scene.add(hill);
   }
-  // edge fence of trees
   for (let i = 0; i < 90; i++) {
     const a = (i / 90) * Math.PI * 2;
     const side = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
@@ -745,7 +793,110 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
     t.position.set(Math.cos(a) * d + (r() - 0.5) * 3, 0, Math.sin(a) * d + (r() - 0.5) * 3);
     scene.add(t);
   }
-  physics.bounds = 106;
+
+  /* mini-map ------------------------------------------------------- */
+  const areaTint: { id: DistrictKey; x: number; z: number; w: number; d: number }[] = [
+    { id: "digital", x: 0, z: -60, w: 64, d: 84 },
+    { id: "creative", x: 60, z: 0, w: 84, d: 60 },
+    { id: "marketing", x: -60, z: 0, w: 84, d: 60 },
+    { id: "business", x: 0, z: 70, w: 40, d: 64 },
+    { id: "innovation", x: 62, z: CAMPUS_ROAD_Z, w: 84, d: 46 },
+  ];
+  function drawMapTo(ctx: CanvasRenderingContext2D, size: number, o: { labels?: boolean; bike?: { x: number; z: number; h: number } }) {
+    const s = size / (BOUNDS * 2);
+    const X = (x: number) => (x + BOUNDS) * s;
+    const Z = (z: number) => (z + BOUNDS) * s;
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = "#c4683a";
+    ctx.fillRect(0, 0, size, size);
+    for (const a of areaTint) {
+      ctx.fillStyle = districtColor(a.id) + "38";
+      ctx.fillRect(X(a.x - a.w / 2), Z(a.z - a.d / 2), a.w * s, a.d * s);
+    }
+    for (const b of mapBlocks) {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(X(b.x - b.w / 2), Z(b.z - b.d / 2), b.w * s, b.d * s);
+    }
+    ctx.fillStyle = "#3d3b3e";
+    for (const rd of mapRoads) ctx.fillRect(X(rd.x - rd.w / 2), Z(rd.z - rd.d / 2), rd.w * s, rd.d * s);
+    ctx.fillStyle = PALETTE.grass;
+    ctx.beginPath();
+    ctx.arc(X(0), Z(0), 5 * s, 0, Math.PI * 2);
+    ctx.fill();
+    for (const z of zones) {
+      const c = z.district ? districtColor(z.district) : PALETTE.brand;
+      ctx.fillStyle = c;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = Math.max(1, size / 220);
+      ctx.beginPath();
+      ctx.arc(X(z.x), Z(z.z), Math.max(2.5, z.r * s * 1.1) * (z.type === "exhibit" ? 1 : 1.5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (o.labels) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.round(size / 26)}px system-ui, sans-serif`;
+      const labels: [string, number, number][] = [
+        ...opts.districts.map((d) => {
+          const a = areaTint.find((t) => t.id === d.id)!;
+          return [d.name, a.x, a.z + (d.id === "digital" ? -30 : d.id === "business" ? 22 : 0)] as [string, number, number];
+        }),
+        ["Start", 0, 30],
+        ["CV", -26, 22],
+        ["Contact", 24, 22],
+        ["Football", pitchX, pitchZ],
+      ];
+      for (const [t, x, z] of labels) {
+        ctx.lineWidth = size / 110;
+        ctx.strokeStyle = "rgba(21,21,21,0.85)";
+        ctx.strokeText(t, X(x), Z(z));
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(t, X(x), Z(z));
+      }
+    }
+    if (o.bike) {
+      const { x, z, h } = o.bike;
+      ctx.save();
+      ctx.translate(X(x), Z(z));
+      ctx.rotate(-h);
+      const k = Math.max(5, size / 30);
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = PALETTE.ink;
+      ctx.lineWidth = Math.max(1.5, size / 150);
+      ctx.beginPath();
+      ctx.moveTo(0, -k);
+      ctx.lineTo(k * 0.7, k * 0.8);
+      ctx.lineTo(0, k * 0.4);
+      ctx.lineTo(-k * 0.7, k * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function prepCanvas(c: HTMLCanvasElement) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const size = Math.round((c.clientWidth || 140) * dpr);
+    if (c.width !== size) {
+      c.width = size;
+      c.height = size;
+    }
+    return size;
+  }
+  let minimapTimer = 0;
+  function updateMinimap(dt: number) {
+    const c = opts.minimap;
+    if (!c) return;
+    minimapTimer -= dt;
+    if (minimapTimer > 0) return;
+    minimapTimer = 0.1;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    drawMapTo(ctx, prepCanvas(c), { bike: { x: bike.x, z: bike.z, h: bike.h } });
+  }
+
+  let currentDistrict: AreaId | null = null;
 
   /* the player's boda --------------------------------------------- */
   const boda = createBoda();
@@ -878,13 +1029,13 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   function checkGoal(dt: number) {
     goalCooldown = Math.max(0, goalCooldown - dt);
     if (goalCooldown > 0) return;
-    if (Math.abs(ball.x) < 3.4 && ball.z > goalZ + 0.3 && ball.z < goalZ + 1.85 && ball.y < 2.2) {
+    if (Math.abs(ball.x - pitchX) < 3.4 && ball.z > goalZ + 0.3 && ball.z < goalZ + 1.85 && ball.y < 2.2) {
       goalCooldown = 4;
       opts.onToast?.("GOOOAL! ⚽  Uganda Cranes would be proud");
       audio.chime([523, 659, 784, 1046, 1318]);
       const pos = new THREE.Vector3();
       for (let i = 0; i < 120; i++) {
-        pos.set((Math.random() - 0.5) * 7, 1 + Math.random() * 2, goalZ - 1);
+        pos.set(pitchX + (Math.random() - 0.5) * 7, 1 + Math.random() * 2, goalZ - 1);
         confetti.emit(pos, new THREE.Vector3((Math.random() - 0.5) * 10, 6 + Math.random() * 9, -Math.random() * 8), {
           life: 2.4,
           scale: 0.3,
@@ -894,7 +1045,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
         });
       }
       setTimeout(() => {
-        ball.x = 0;
+        ball.x = pitchX;
         ball.z = pitchZ;
         ball.y = 0;
         ball.vx = ball.vz = 0;
@@ -1074,6 +1225,11 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
       if (found) audio.chime([660, 880]);
       opts.onZone?.(found);
     }
+    const d = districtAt(bike.x, bike.z);
+    if (d !== currentDistrict) {
+      currentDistrict = d;
+      opts.onDistrict?.(d);
+    }
   }
 
   function updatePads(t: number) {
@@ -1137,6 +1293,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
       boda.root.position.set(bike.x, 0, bike.z);
       boda.root.rotation.y = bike.h;
     }
+    updateBoards(frameDt, bike.x, bike.z);
+    updateMinimap(frameDt);
     dust.update(frameDt);
     smoke.update(frameDt);
     confetti.update(frameDt);
@@ -1155,9 +1313,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
   };
   document.addEventListener("visibilitychange", onVis);
 
-  if (loadTotal === 0) setTimeout(readyOnce, 0);
-  // never let a slow image keep people at the loader
-  const readyTimeout = setTimeout(readyOnce, 8000);
+  // the world is procedural, so it's ready after the first frames compile
+  const readyTimeout = setTimeout(readyOnce, 350);
 
   const handle: WorldHandle = {
     start() {
@@ -1198,6 +1355,11 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions): Worl
       }
     },
     getZones: () => zones.slice(),
+    drawMap(c, o) {
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+      drawMapTo(ctx, prepCanvas(c), { labels: o?.labels ?? true, bike: { x: bike.x, z: bike.z, h: bike.h } });
+    },
     destroy() {
       cancelAnimationFrame(raf);
       clearTimeout(readyTimeout);

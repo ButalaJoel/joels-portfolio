@@ -13,12 +13,14 @@ export type Collider = CircleCollider | BoxCollider;
 export type Ramp = {
   x: number;
   z: number;
-  /** half width (x) */
+  /** half width across the ramp */
   hw: number;
-  /** half length (z) */
+  /** half length along the ramp */
   hl: number;
   height: number;
-  /** -1: rises toward -z (north), 1: rises toward +z */
+  /** direction the ramp runs along */
+  axis: "x" | "z";
+  /** -1: rises toward the negative axis, 1: toward the positive axis */
   dir: -1 | 1;
 };
 
@@ -60,11 +62,11 @@ export class PhysicsWorld {
   heightAt(x: number, z: number) {
     let h = 0;
     for (const r of this.ramps) {
-      const dx = x - r.x;
-      const dz = z - r.z;
-      if (Math.abs(dx) > r.hw || Math.abs(dz) > r.hl) continue;
-      // t: 0 at low end, 1 at high end
-      const t = r.dir === -1 ? (r.hl - dz) / (2 * r.hl) : (dz + r.hl) / (2 * r.hl);
+      const along = r.axis === "z" ? z - r.z : x - r.x;
+      const across = r.axis === "z" ? x - r.x : z - r.z;
+      if (Math.abs(across) > r.hw || Math.abs(along) > r.hl) continue;
+      // t: 0 at the low end, 1 at the high end
+      const t = r.dir === -1 ? (r.hl - along) / (2 * r.hl) : (along + r.hl) / (2 * r.hl);
       h = Math.max(h, t * r.height);
     }
     return h;

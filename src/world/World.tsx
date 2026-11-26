@@ -1,68 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { TeleportTarget, WorldHandle, Zone } from "./engine";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AreaId, TeleportTarget, WorldHandle, Zone } from "./engine";
+import type { CV, District, DistrictId, Exhibit, ExhibitStatus } from "@/content/types";
+import { STATUS_LABEL } from "@/content/types";
 import "./world.css";
 
-/* ------------------------------------------------------------------ */
-/* Content types (match src/data/projects.ts)                          */
-/* ------------------------------------------------------------------ */
-
-export type Deliverable = {
-  type: string;
-  title: string;
-  description: string;
-  image?: string;
-  images?: string[];
-  video?: string;
-};
-
-export type Project = {
-  id: number;
-  slug: string;
-  title: string;
-  category: string;
-  year: string;
-  description: string;
-  image?: string;
-  deliverables: Deliverable[];
-};
-
-export type Profile = {
-  name: string;
-  role: string;
-  location: string;
-  bio: string[];
-  email: string;
-  photo: string;
-  stats: { value: string; label: string }[];
-  tools: string[];
-  socials: { label: string; href: string }[];
-};
-
-type Panel =
-  | { kind: "project"; project: Project }
-  | { kind: "about" }
-  | { kind: "contact" }
-  | { kind: "pitch" }
-  | { kind: "menu" }
-  | null;
+type Panel = { kind: "exhibit"; exhibit: Exhibit } | { kind: "cv" } | { kind: "contact" } | { kind: "pitch" } | { kind: "map" } | null;
 
 type Props = {
-  projects: Project[];
-  profile: Profile;
+  exhibits: Exhibit[];
+  districts: District[];
+  cv: CV;
+  /** maps "/work/x.jpg" to wherever the file is served from */
   resolveAsset?: (path: string) => string;
+  /** link to the printable CV page; hidden when empty */
+  cvHref?: string;
 };
 
 const isCoarse = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+const INTRO_KEY = "joelverse-intro-seen";
 
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
-
-export default function World({ projects, profile, resolveAsset }: Props) {
+export default function World({ exhibits, districts, cv, resolveAsset, cvHref = "/cv" }: Props) {
   const asset = useCallback((p: string) => (resolveAsset ? resolveAsset(p) : p), [resolveAsset]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
+  const bigMapRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef<WorldHandle | null>(null);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
@@ -70,13 +33,18 @@ export default function World({ projects, profile, resolveAsset }: Props) {
   const [loaderGone, setLoaderGone] = useState(false);
   const [zone, setZone] = useState<Zone | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
+  const [portfolio, setPortfolio] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [touch, setTouchMode] = useState(false);
+  const [intro, setIntro] = useState(false);
   const [webglError, setWebglError] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<Panel>(null);
   panelRef.current = panel;
+
+  const districtById = useMemo(() => Object.fromEntries(districts.map((d) => [d.id, d])) as Record<DistrictId, District>, [districts]);
+  const skillTools = useMemo(() => cv.skills[0]?.items.map((t) => t.replace("Adobe ", "")) ?? [], [cv.skills]);
 
   const showToast = useCallback((t: string) => {
     setToast(t);
@@ -86,17 +54,25 @@ export default function World({ projects, profile, resolveAsset }: Props) {
 
   const openZone = useCallback(
     (z: Zone) => {
-      if (z.type === "project") {
-        const p = projects.find((pp) => pp.slug === z.slug);
-        if (p) setPanel({ kind: "project", project: p });
+      if (z.type === "exhibit") {
+        const e = exhibits.find((x) => x.slug === z.slug);
+        if (e) setPanel({ kind: "exhibit", exhibit: e });
       } else setPanel({ kind: z.type });
     },
-    [projects],
+    [exhibits],
+  );
+
+  const onDistrict = useCallback(
+    (a: AreaId | null) => {
+      if (!a || a === "start" || a === "pitch") return;
+      const d = districtById[a];
+      if (d) showToast(`Entering ${d.name}`);
+    },
+    [districtById, showToast],
   );
 
   /* mount the 3D world -------------------------------------------- */
   useEffect(() => {
-    // read device/storage prefs after hydration so server and client HTML match
     const prefsFrame = requestAnimationFrame(() => {
       setTouchMode(isCoarse());
       try {
@@ -112,14 +88,23 @@ export default function World({ projects, profile, resolveAsset }: Props) {
       if (disposed || !canvasRef.current) return;
       try {
         handle = createWorld(canvasRef.current, {
-          projects: projects.map((p) => ({ slug: p.slug, title: p.title, category: p.category, year: p.year, image: p.image })),
-          tools: profile.tools,
+          exhibits: exhibits.map((e) => ({
+            slug: e.slug,
+            title: e.title,
+            subtitle: e.sector || STATUS_LABEL[e.status],
+            district: e.district,
+            image: e.board || e.cover || undefined,
+          })),
+          districts: districts.map((d) => ({ id: d.id, name: d.name, color: d.color })),
+          tools: skillTools,
           resolveAsset: asset,
+          minimap: minimapRef.current,
           onProgress: setProgress,
           onReady: () => setReady(true),
           onZone: setZone,
           onActivate: openZone,
           onToast: showToast,
+          onDistrict,
         });
         worldRef.current = handle;
       } catch (err) {
@@ -134,16 +119,24 @@ export default function World({ projects, profile, resolveAsset }: Props) {
       handle?.destroy();
       worldRef.current = null;
     };
-  }, [projects, profile.tools, asset, openZone, showToast]);
+  }, [exhibits, districts, skillTools, asset, openZone, showToast, onDistrict]);
 
   useEffect(() => {
-    worldRef.current?.setPaused(!!panel || !started);
-  }, [panel, started]);
+    worldRef.current?.setPaused(!!panel || !started || portfolio || intro);
+  }, [panel, started, portfolio, intro]);
+
+  useEffect(() => {
+    if (panel?.kind === "map" && bigMapRef.current) worldRef.current?.drawMap(bigMapRef.current, { labels: true });
+  }, [panel]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPanel(null);
+      if (e.key === "Escape") {
+        if (panelRef.current) setPanel(null);
+        else setIntro(false);
+      }
       if (e.key === "Enter" && !panelRef.current && !started && ready) begin();
+      if ((e.key === "m" || e.key === "M") && started && !panelRef.current && !portfolio) setPanel({ kind: "map" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -151,14 +144,41 @@ export default function World({ projects, profile, resolveAsset }: Props) {
 
   function begin() {
     if (webglError) {
-      setStarted(true);
-      setLoaderGone(true);
-      setPanel({ kind: "menu" });
+      openPortfolio();
       return;
     }
     worldRef.current?.start();
     setStarted(true);
     setTimeout(() => setLoaderGone(true), 900);
+    let seen = false;
+    try {
+      seen = localStorage.getItem(INTRO_KEY) === "1";
+    } catch {
+      /* ignore */
+    }
+    if (!seen) setTimeout(() => setIntro(true), 1300);
+  }
+
+  function closeIntro() {
+    setIntro(false);
+    try {
+      localStorage.setItem(INTRO_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function openPortfolio() {
+    setStarted(true);
+    setLoaderGone(true);
+    setPanel(null);
+    setPortfolio(true);
+  }
+
+  function backToRide() {
+    setPortfolio(false);
+    setPanel(null);
+    worldRef.current?.start();
   }
 
   function toggleMute() {
@@ -170,6 +190,7 @@ export default function World({ projects, profile, resolveAsset }: Props) {
   function go(t: TeleportTarget) {
     worldRef.current?.teleport(t);
     setPanel(null);
+    setPortfolio(false);
   }
 
   /* floating joystick (touch) ------------------------------------- */
@@ -178,7 +199,7 @@ export default function World({ projects, profile, resolveAsset }: Props) {
   const JOY_R = 56;
 
   function onPointerDown(e: React.PointerEvent) {
-    if (e.pointerType === "mouse" || !started || panel) return;
+    if (e.pointerType === "mouse" || !started || panel || portfolio) return;
     if (joy.current) return;
     joy.current = { id: e.pointerId, ox: e.clientX, oy: e.clientY };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -206,6 +227,14 @@ export default function World({ projects, profile, resolveAsset }: Props) {
     worldRef.current?.setTouch({ x: 0, y: 0, active: false });
   }
 
+  const zoneKicker = (z: Zone) => {
+    if (z.type === "exhibit") return z.district ? districtById[z.district]?.name ?? "Project" : "Project";
+    if (z.type === "pitch") return "Mini game";
+    return z.title;
+  };
+  const zoneTitle = (z: Zone) => (z.type === "exhibit" ? z.title : z.subtitle);
+  const zoneColor = (z: Zone) => (z.district ? districtById[z.district]?.color : undefined);
+
   /* render -------------------------------------------------------- */
   return (
     <div className="jw-root">
@@ -216,7 +245,7 @@ export default function World({ projects, profile, resolveAsset }: Props) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        aria-label="3D world: ride a boda boda around Joel's portfolio"
+        aria-label="JOELVERSE: a 3D world where you ride a boda boda through Joel Butala's work"
       />
 
       {joyUi && (
@@ -226,85 +255,136 @@ export default function World({ projects, profile, resolveAsset }: Props) {
       )}
 
       {/* HUD */}
-      {started && (
-        <>
-          <header className="jw-hud-top">
-            <button className="jw-brand" onClick={() => setPanel({ kind: "about" })}>
-              <span className="jw-brand-name">{profile.name}</span>
-              <span className="jw-brand-role">{profile.role}</span>
+      <div className={`jw-hud ${started && !portfolio ? "is-on" : ""}`}>
+        <header className="jw-hud-top">
+          <button className="jw-brand" onClick={() => setPanel({ kind: "cv" })}>
+            <span className="jw-brand-name">{cv.name}</span>
+            <span className="jw-brand-role">Creative · Marketing · Technology</span>
+          </button>
+          <div className="jw-hud-actions">
+            <button className="jw-icon-btn" onClick={openPortfolio} aria-label="Switch to portfolio mode">
+              <ListIcon />
+              <span className="jw-hide-sm">Portfolio mode</span>
             </button>
-            <div className="jw-hud-actions">
-              <button className="jw-icon-btn" onClick={() => setPanel({ kind: "menu" })} aria-label="Open map and project list">
-                <MapIcon />
-                <span>Map</span>
-              </button>
-              <button className="jw-icon-btn" onClick={toggleMute} aria-label={muted ? "Unmute sound" : "Mute sound"}>
-                {muted ? <MuteIcon /> : <SoundIcon />}
-              </button>
-            </div>
-          </header>
-
-          {!touch && !panel && <div className="jw-keys">WASD / arrows · Shift boost · Space brake · H hoot · R reset</div>}
-
-          {touch && !panel && (
-            <div className="jw-touch-btns">
-              <button
-                className="jw-round jw-boost"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  worldRef.current?.setBoost(true);
-                }}
-                onPointerUp={() => worldRef.current?.setBoost(false)}
-                onPointerCancel={() => worldRef.current?.setBoost(false)}
-                onPointerLeave={() => worldRef.current?.setBoost(false)}
-                aria-label="Boost"
-              >
-                ⚡
-              </button>
-              <button className="jw-round" onPointerDown={(e) => { e.stopPropagation(); worldRef.current?.horn(); }} aria-label="Hoot the horn">
-                📯
-              </button>
-            </div>
-          )}
-
-          {zone && !panel && (
-            <button className="jw-prompt" onClick={() => openZone(zone)}>
-              <span className="jw-prompt-kicker">{zone.type === "project" ? "Project" : zone.type === "pitch" ? "Mini game" : zone.title}</span>
-              <span className="jw-prompt-title">{zone.type === "project" ? zone.title : zone.subtitle}</span>
-              <span className="jw-prompt-cta">{touch ? "Tap to open" : "Press Enter ↵"}</span>
+            <button className="jw-icon-btn" onClick={() => setPanel({ kind: "map" })} aria-label="Open the map">
+              <MapIcon />
+              <span className="jw-hide-sm">Map</span>
             </button>
-          )}
-        </>
-      )}
+            <button className="jw-icon-btn" onClick={toggleMute} aria-label={muted ? "Unmute sound" : "Mute sound"}>
+              {muted ? <MuteIcon /> : <SoundIcon />}
+            </button>
+          </div>
+        </header>
+
+        <button className="jw-minimap" onClick={() => setPanel({ kind: "map" })} aria-label="Open the full map">
+          <canvas ref={minimapRef} />
+        </button>
+
+        {!touch && !panel && <div className="jw-keys">WASD / arrows · Shift boost · Space brake · H hoot · M map · R reset</div>}
+
+        {touch && !panel && (
+          <div className="jw-touch-btns">
+            <button
+              className="jw-round jw-boost"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                worldRef.current?.setBoost(true);
+              }}
+              onPointerUp={() => worldRef.current?.setBoost(false)}
+              onPointerCancel={() => worldRef.current?.setBoost(false)}
+              onPointerLeave={() => worldRef.current?.setBoost(false)}
+              aria-label="Boost"
+            >
+              ⚡
+            </button>
+            <button
+              className="jw-round"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                worldRef.current?.horn();
+              }}
+              aria-label="Hoot the horn"
+            >
+              📯
+            </button>
+          </div>
+        )}
+
+        {zone && !panel && started && !portfolio && (
+          <button className="jw-prompt" onClick={() => openZone(zone)} style={zoneColor(zone) ? ({ "--zc": zoneColor(zone) } as React.CSSProperties) : undefined}>
+            <span className="jw-prompt-kicker">{zoneKicker(zone)}</span>
+            <span className="jw-prompt-title">{zoneTitle(zone)}</span>
+            <span className="jw-prompt-cta">{touch ? "Tap to open" : "Press Enter ↵"}</span>
+          </button>
+        )}
+      </div>
 
       {toast && <div className="jw-toast">{toast}</div>}
+
+      {/* first-time instructions */}
+      {intro && !panel && !portfolio && (
+        <div className="jw-modal jw-center" role="dialog" aria-modal="true" onClick={closeIntro}>
+          <div className="jw-intro" onClick={(e) => e.stopPropagation()}>
+            <p className="jw-kicker">How to explore</p>
+            <h2 className="jw-h2">Welcome to JOELVERSE</h2>
+            <ol className="jw-steps">
+              <li>
+                <b>{touch ? "Drag anywhere" : "Use WASD or the arrow keys"}</b> to ride the boda. {touch ? "Hold ⚡ to go faster." : "Hold Shift to go faster."}
+              </li>
+              <li>
+                <b>Ride onto a glowing circle</b> to open a project, my CV or my contacts.
+              </li>
+              <li>
+                <b>In a hurry?</b> Open <b>Map</b> to jump anywhere, or <b>Portfolio mode</b> for a normal page.
+              </li>
+            </ol>
+            <div className="jw-row">
+              <button className="jw-start" onClick={closeIntro}>
+                Let&apos;s ride
+              </button>
+              <button className="jw-link jw-link-dark" onClick={() => { closeIntro(); setPanel({ kind: "cv" }); }}>
+                See my CV first
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loader */}
       {!loaderGone && (
         <div className={`jw-loader ${started ? "is-leaving" : ""}`}>
           <div className="jw-loader-inner">
-            <p className="jw-kicker">Portfolio · {profile.location}</p>
-            <h1 className="jw-loader-title">{profile.name}</h1>
-            <p className="jw-loader-sub">{profile.role}. Ride a boda boda through a tiny Kampala to see my work.</p>
+            <p className="jw-kicker">JOELVERSE · {cv.location}</p>
+            <h1 className="jw-loader-title">{cv.name}</h1>
+            <p className="jw-loader-sub">{cv.identity}. Ride a boda boda through a tiny Kampala to see my work, or open the classic portfolio.</p>
             <div className="jw-bar" aria-hidden>
               <div className="jw-bar-fill" style={{ width: `${Math.round(progress * 100)}%` }} />
             </div>
-            <button className="jw-start" disabled={!ready} onClick={begin}>
-              {ready ? (webglError ? "View my work" : "Start the engine") : `Loading ${Math.round(progress * 100)}%`}
-            </button>
-            <button
-              className="jw-link"
-              onClick={() => {
-                setStarted(true);
-                setLoaderGone(true);
-                setPanel({ kind: "menu" });
-              }}
-            >
-              Skip the ride, show me the list
-            </button>
-            <p className="jw-hint">{touch ? "Drag anywhere to steer · 🔊 sound on" : "Keyboard: WASD or arrows · 🔊 sound on"}</p>
+            <div className="jw-row">
+              <button className="jw-start" disabled={!ready} onClick={begin}>
+                {ready ? (webglError ? "View my portfolio" : "Start the engine") : `Loading ${Math.round(progress * 100)}%`}
+              </button>
+              <button className="jw-ghost" onClick={openPortfolio}>
+                Portfolio mode
+              </button>
+            </div>
+            <p className="jw-hint">{touch ? "Drag anywhere to steer · sound on" : "Keyboard: WASD or arrows · sound on"}</p>
           </div>
         </div>
+      )}
+
+      {/* Portfolio mode */}
+      {portfolio && (
+        <PortfolioMode
+          cv={cv}
+          exhibits={exhibits}
+          districts={districts}
+          asset={asset}
+          cvHref={cvHref}
+          canRide={!webglError}
+          onRide={backToRide}
+          onOpen={(e) => setPanel({ kind: "exhibit", exhibit: e })}
+        />
       )}
 
       {/* Panels */}
@@ -314,9 +394,9 @@ export default function World({ projects, profile, resolveAsset }: Props) {
             <button className="jw-close" onClick={() => setPanel(null)} aria-label="Close">
               ✕
             </button>
-            {panel.kind === "project" && <ProjectView project={panel.project} asset={asset} />}
-            {panel.kind === "about" && <AboutView profile={profile} asset={asset} />}
-            {panel.kind === "contact" && <ContactView profile={profile} />}
+            {panel.kind === "exhibit" && <ExhibitView exhibit={panel.exhibit} district={districtById[panel.exhibit.district]} asset={asset} />}
+            {panel.kind === "cv" && <CVView cv={cv} asset={asset} cvHref={cvHref} onContact={() => setPanel({ kind: "contact" })} />}
+            {panel.kind === "contact" && <ContactView cv={cv} />}
             {panel.kind === "pitch" && (
               <div className="jw-pad">
                 <p className="jw-kicker">Mini game</p>
@@ -327,15 +407,13 @@ export default function World({ projects, profile, resolveAsset }: Props) {
                 </button>
               </div>
             )}
-            {panel.kind === "menu" && (
-              <MenuView
-                projects={projects}
-                asset={asset}
+            {panel.kind === "map" && (
+              <MapView
+                districts={districts}
+                bigMapRef={bigMapRef}
                 webgl={!webglError}
                 onGo={go}
-                onProject={(p) => setPanel({ kind: "project", project: p })}
-                onAbout={() => setPanel({ kind: "about" })}
-                onContact={() => setPanel({ kind: "contact" })}
+                onPortfolio={openPortfolio}
               />
             )}
           </div>
@@ -346,167 +424,434 @@ export default function World({ projects, profile, resolveAsset }: Props) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Panels                                                              */
+/* Pieces                                                              */
 /* ------------------------------------------------------------------ */
 
-function ProjectView({ project, asset }: { project: Project; asset: (p: string) => string }) {
+function StatusChip({ status }: { status: ExhibitStatus }) {
+  return <span className={`jw-status jw-status-${status}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function Media({ src, alt, asset }: { src: string; alt: string; asset: (p: string) => string }) {
+  if (src.endsWith(".mp4")) return <video src={asset(src)} muted loop playsInline autoPlay controls preload="metadata" />;
+  return <img src={asset(src)} alt={alt} loading="lazy" />;
+}
+
+function ExhibitView({ exhibit: e, district, asset }: { exhibit: Exhibit; district?: District; asset: (p: string) => string }) {
+  const hasMedia = !!e.cover || e.sections.some((s) => s.media.length > 0);
   return (
-    <div>
-      {project.image && (
+    <article style={district ? ({ "--dc": district.color } as React.CSSProperties) : undefined}>
+      {e.cover && (
         <div className="jw-hero">
-          <img src={asset(project.image)} alt={project.title} onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")} />
+          <img src={asset(e.cover)} alt={e.title} onError={(ev) => ((ev.target as HTMLImageElement).parentElement!.style.display = "none")} />
         </div>
       )}
       <div className="jw-pad">
-        <p className="jw-kicker">
-          {project.category} · {project.year}
-        </p>
-        <h2 className="jw-h2">{project.title}</h2>
-        <p className="jw-body">{project.description}</p>
-        {project.deliverables.length > 0 && (
-          <div className="jw-deliverables">
-            {project.deliverables.map((d) => (
-              <article key={d.title} className="jw-deliv">
-                <div className="jw-deliv-media">
-                  {d.video ? (
-                    <video src={asset(d.video)} muted loop playsInline autoPlay preload="metadata" />
-                  ) : d.images ? (
-                    <div className="jw-deliv-pair">
-                      {d.images.map((src) => (
-                        <img key={src} src={asset(src)} alt={d.title} loading="lazy" />
-                      ))}
-                    </div>
-                  ) : d.image ? (
-                    <img src={asset(d.image)} alt={d.title} loading="lazy" />
-                  ) : null}
-                </div>
-                <p className="jw-tag">{d.type}</p>
-                <h3 className="jw-h3">{d.title}</h3>
-                <p className="jw-small">{d.description}</p>
-              </article>
+        <p className="jw-kicker jw-kicker-d">{district?.name}</p>
+        <h2 className="jw-h2">{e.title}</h2>
+        <div className="jw-meta">
+          <StatusChip status={e.status} />
+          {e.client && <span>{e.client}</span>}
+          {e.sector && <span>{e.sector}</span>}
+        </div>
+        {e.role && <p className="jw-role">{e.role}</p>}
+        <p className="jw-body jw-lead">{e.summary}</p>
+        {e.problem && (
+          <>
+            <h3 className="jw-h3 jw-sub">The problem</h3>
+            <p className="jw-body">{e.problem}</p>
+          </>
+        )}
+        {e.solution && e.solution !== e.summary && (
+          <>
+            <h3 className="jw-h3 jw-sub">What was done</h3>
+            <p className="jw-body">{e.solution}</p>
+          </>
+        )}
+        {e.deliverables.length > 0 && (
+          <>
+            <h3 className="jw-h3 jw-sub">Deliverables</h3>
+            <div className="jw-chips">
+              {e.deliverables.map((d) => (
+                <span key={d} className="jw-chip jw-chip-soft">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+        {e.stack.length > 0 && (
+          <>
+            <h3 className="jw-h3 jw-sub">Built with</h3>
+            <div className="jw-chips">
+              {e.stack.map((d) => (
+                <span key={d} className="jw-chip">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+        {e.link && (
+          <a className="jw-start jw-start-link" href={e.link} target="_blank" rel="noopener noreferrer">
+            Visit {e.link.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+          </a>
+        )}
+        {e.sections.length > 0 && (
+          <div className="jw-sections">
+            {e.sections.map((s) => (
+              <section key={s.title} className="jw-section">
+                <h3 className="jw-h3">{s.title}</h3>
+                <p className="jw-small">{s.body}</p>
+                {s.media.length > 0 && (
+                  <div className={`jw-gallery ${s.media.length > 1 ? "is-grid" : ""}`}>
+                    {s.media.map((m) => (
+                      <div key={m} className="jw-gallery-item">
+                        <Media src={m} alt={s.title} asset={asset} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             ))}
           </div>
         )}
-        {project.deliverables.length === 0 && <p className="jw-small jw-muted">Full case study coming soon.</p>}
+        {!hasMedia && <p className="jw-small jw-muted jw-note">Images for this project are being added.</p>}
       </div>
-    </div>
+    </article>
   );
 }
 
-function AboutView({ profile, asset }: { profile: Profile; asset: (p: string) => string }) {
+function CVView({ cv, asset, cvHref, onContact }: { cv: CV; asset: (p: string) => string; cvHref: string; onContact?: () => void }) {
   return (
-    <div className="jw-about">
+    <div className="jw-cv">
       <div className="jw-about-photo">
-        <img src={asset(profile.photo)} alt={profile.name} />
+        <img src={asset(cv.photo)} alt={cv.name} />
       </div>
       <div className="jw-pad">
-        <p className="jw-kicker">About me</p>
-        <h2 className="jw-h2">{profile.bio[0]}</h2>
-        {profile.bio.slice(1).map((b) => (
-          <p key={b} className="jw-body">
-            {b}
+        <p className="jw-kicker">Achievements Centre</p>
+        <h2 className="jw-h2">{cv.name}</h2>
+        <p className="jw-role">{cv.identity}</p>
+        {cv.summary.map((s) => (
+          <p key={s} className="jw-body">
+            {s}
           </p>
         ))}
-        <div className="jw-stats">
-          {profile.stats.map((s) => (
-            <div key={s.label} className="jw-stat">
-              <span className="jw-stat-v">{s.value}</span>
-              <span className="jw-stat-l">{s.label}</span>
+        <div className="jw-row">
+          {cvHref && (
+            <a className="jw-start jw-start-link" href={cvHref} target="_blank" rel="noopener noreferrer">
+              Printable CV / PDF
+            </a>
+          )}
+          {onContact && (
+            <button className="jw-ghost jw-ghost-dark" onClick={onContact}>
+              Contact me
+            </button>
+          )}
+        </div>
+
+        <h3 className="jw-h3 jw-sub">Highlights</h3>
+        <ul className="jw-list-plain">
+          {cv.achievements.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+
+        <h3 className="jw-h3 jw-sub">Experience</h3>
+        <div className="jw-timeline">
+          {cv.experience.map((x) => (
+            <div key={x.org} className="jw-job">
+              <p className="jw-job-period">{x.period}</p>
+              <p className="jw-job-role">{x.role}</p>
+              <p className="jw-job-org">{x.org}</p>
+              {x.summary && <p className="jw-small">{x.summary}</p>}
+              {x.groups?.map((g) => (
+                <div key={g.label} className="jw-job-group">
+                  <p className="jw-tag">{g.label}</p>
+                  <p className="jw-small">{g.items.join(" · ")}</p>
+                </div>
+              ))}
+              {x.highlights && (
+                <>
+                  <p className="jw-tag">Key projects</p>
+                  <ul className="jw-list-plain jw-small">
+                    {x.highlights.map((h) => (
+                      <li key={h}>{h}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           ))}
         </div>
-        <p className="jw-kicker" style={{ marginTop: 24 }}>
-          Tools I use
-        </p>
-        <div className="jw-chips">
-          {profile.tools.map((t) => (
-            <span key={t} className="jw-chip">
-              {t}
-            </span>
-          ))}
-        </div>
+
+        <h3 className="jw-h3 jw-sub">Education</h3>
+        {cv.education.map((ed) => (
+          <div key={ed.award} className="jw-job">
+            <p className="jw-job-role">{ed.award}</p>
+            <p className="jw-job-org">{ed.school}</p>
+          </div>
+        ))}
+        {cv.ambitions.length > 0 && <p className="jw-small jw-muted">Next: {cv.ambitions.join(" · ")}</p>}
+
+        <h3 className="jw-h3 jw-sub">Skills</h3>
+        {cv.skills.map((s) => (
+          <div key={s.tier} className="jw-skill-tier">
+            <p className="jw-tag">
+              {s.tier} <span className="jw-muted">· {s.note}</span>
+            </p>
+            <div className="jw-chips">
+              {s.items.map((t) => (
+                <span key={t} className={`jw-chip ${s.tier === "Developing" ? "jw-chip-soft" : ""}`}>
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <h3 className="jw-h3 jw-sub">What I do</h3>
+        <p className="jw-small">{cv.disciplines.join(" · ")}</p>
       </div>
     </div>
   );
 }
 
-function ContactView({ profile }: { profile: Profile }) {
+function ContactView({ cv }: { cv: CV }) {
   return (
     <div className="jw-pad">
-      <p className="jw-kicker">Contact</p>
-      <h2 className="jw-h2">Got a brand on the rise? Let&apos;s talk.</h2>
-      <p className="jw-body">Branding, websites, apps and motion. Tell me what you&apos;re building.</p>
-      <a className="jw-start jw-start-link" href={`mailto:${profile.email}`}>
-        {profile.email}
-      </a>
-      {profile.socials.length > 0 && (
-        <div className="jw-chips" style={{ marginTop: 16 }}>
-          {profile.socials.map((s) => (
-            <a key={s.label} className="jw-chip jw-chip-link" href={s.href} target="_blank" rel="noopener noreferrer">
-              {s.label} ↗
-            </a>
-          ))}
-        </div>
-      )}
+      <p className="jw-kicker">Contact Centre</p>
+      <h2 className="jw-h2">Let&apos;s work together</h2>
+      <p className="jw-body">For roles, brand and marketing work, websites and software, or partnerships.</p>
+      <div className="jw-contact-list">
+        <a className="jw-contact" href={`mailto:${cv.email}`}>
+          <span className="jw-tag">Email</span>
+          <span>{cv.email}</span>
+        </a>
+        {cv.phones.map((p) => (
+          <a key={p.tel} className="jw-contact" href={`tel:${p.tel}`}>
+            <span className="jw-tag">Phone</span>
+            <span>{p.display}</span>
+          </a>
+        ))}
+        {cv.whatsapp && (
+          <a className="jw-contact" href={`https://wa.me/${cv.whatsapp}`} target="_blank" rel="noopener noreferrer">
+            <span className="jw-tag">WhatsApp</span>
+            <span>Chat on WhatsApp ↗</span>
+          </a>
+        )}
+        {cv.links.map((l) => (
+          <a key={l.href} className="jw-contact" href={l.href} target="_blank" rel="noopener noreferrer">
+            <span className="jw-tag">{l.label}</span>
+            <span>{l.href.replace(/^https?:\/\//, "")} ↗</span>
+          </a>
+        ))}
+      </div>
+      <p className="jw-small jw-muted">{cv.location}</p>
     </div>
   );
 }
 
-function MenuView(props: {
-  projects: Project[];
-  asset: (p: string) => string;
+function MapView({ districts, bigMapRef, webgl, onGo, onPortfolio }: {
+  districts: District[];
+  bigMapRef: React.RefObject<HTMLCanvasElement | null>;
   webgl: boolean;
   onGo: (t: TeleportTarget) => void;
-  onProject: (p: Project) => void;
-  onAbout: () => void;
-  onContact: () => void;
+  onPortfolio: () => void;
 }) {
-  const places: [TeleportTarget, string, string][] = [
-    ["spawn", "Boda stage", "Start"],
-    ["work", "Work street", "Projects"],
-    ["about", "Skills market", "About"],
-    ["contact", "Hello kiosk", "Contact"],
-    ["pitch", "Football pitch", "Mini game"],
+  const places: { id: TeleportTarget; name: string; tag: string; color?: string }[] = [
+    { id: "start", name: "Start", tag: "Welcome" },
+    { id: "cv", name: "Achievements Centre", tag: "CV" },
+    { id: "contact", name: "Contact Centre", tag: "Contact" },
+    ...districts.map((d) => ({ id: d.id as TeleportTarget, name: d.name, tag: d.short, color: d.color })),
+    { id: "pitch", name: "Football pitch", tag: "Mini game" },
   ];
   return (
     <div className="jw-pad">
-      {props.webgl && (
-        <>
-          <p className="jw-kicker">Ride to</p>
-          <div className="jw-places">
-            {places.map(([id, name, tag]) => (
-              <button key={id} className="jw-place" onClick={() => props.onGo(id)}>
-                <span className="jw-place-tag">{tag}</span>
-                <span>{name}</span>
-              </button>
-            ))}
-          </div>
-        </>
+      <p className="jw-kicker">Map</p>
+      <h2 className="jw-h2">Where to?</h2>
+      {webgl && (
+        <div className="jw-bigmap">
+          <canvas ref={bigMapRef} />
+        </div>
       )}
-      <p className="jw-kicker" style={{ marginTop: 24 }}>
-        All projects
-      </p>
-      <div className="jw-list">
-        {props.projects.map((p) => (
-          <button key={p.slug} className="jw-list-item" onClick={() => props.onProject(p)}>
-            <span className="jw-list-thumb">{p.image && <img src={props.asset(p.image)} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />}</span>
-            <span className="jw-list-text">
-              <span className="jw-h3">{p.title}</span>
-              <span className="jw-small jw-muted">{p.category}</span>
-            </span>
-            <span aria-hidden>→</span>
+      <div className="jw-places">
+        {places.map((p) => (
+          <button key={p.id} className="jw-place" onClick={() => onGo(p.id)} style={p.color ? ({ "--pc": p.color } as React.CSSProperties) : undefined}>
+            <span className="jw-place-tag">{p.tag}</span>
+            <span>{p.name}</span>
           </button>
         ))}
       </div>
-      <div className="jw-menu-foot">
-        <button className="jw-link" onClick={props.onAbout}>
-          About me
-        </button>
-        <button className="jw-link" onClick={props.onContact}>
-          Contact
-        </button>
-      </div>
+      <button className="jw-link jw-link-dark" onClick={onPortfolio}>
+        Switch to portfolio mode →
+      </button>
     </div>
+  );
+}
+
+function PortfolioMode(props: {
+  cv: CV;
+  exhibits: Exhibit[];
+  districts: District[];
+  asset: (p: string) => string;
+  cvHref: string;
+  canRide: boolean;
+  onRide: () => void;
+  onOpen: (e: Exhibit) => void;
+}) {
+  const { cv, exhibits, districts, asset } = props;
+  const [filter, setFilter] = useState<DistrictId | "all">("all");
+  const shown = filter === "all" ? exhibits : exhibits.filter((e) => e.district === filter);
+  return (
+    <div className="jw-portfolio">
+      <nav className="jw-pf-nav">
+        <span className="jw-pf-logo">{cv.name}</span>
+        <div className="jw-pf-links">
+          <a href="#pf-work">Work</a>
+          <a href="#pf-experience">Experience</a>
+          <a href="#pf-skills">Skills</a>
+          <a href="#pf-contact">Contact</a>
+        </div>
+        {props.canRide && (
+          <button className="jw-start jw-start-sm" onClick={props.onRide}>
+            Ride the world
+          </button>
+        )}
+      </nav>
+
+      <header className="jw-pf-hero">
+        <div>
+          <p className="jw-kicker">{cv.location}</p>
+          <h1 className="jw-pf-title">{cv.name}</h1>
+          <p className="jw-pf-identity">{cv.identity}</p>
+          {cv.summary.map((s) => (
+            <p key={s} className="jw-body">
+              {s}
+            </p>
+          ))}
+          <div className="jw-row">
+            {props.cvHref && (
+              <a className="jw-start jw-start-link" href={props.cvHref} target="_blank" rel="noopener noreferrer">
+                Printable CV / PDF
+              </a>
+            )}
+            <a className="jw-ghost jw-ghost-dark" href="#pf-contact">
+              Contact
+            </a>
+          </div>
+        </div>
+        <div className="jw-pf-photo">
+          <img src={asset(cv.photo)} alt={cv.name} />
+        </div>
+      </header>
+
+      <section id="pf-work" className="jw-pf-section">
+        <h2 className="jw-h2">Work</h2>
+        <div className="jw-filters" role="tablist">
+          <button className={filter === "all" ? "is-on" : ""} onClick={() => setFilter("all")}>
+            All ({exhibits.length})
+          </button>
+          {districts.map((d) => (
+            <button key={d.id} className={filter === d.id ? "is-on" : ""} onClick={() => setFilter(d.id)} style={{ "--pc": d.color } as React.CSSProperties}>
+              {d.short} ({exhibits.filter((e) => e.district === d.id).length})
+            </button>
+          ))}
+        </div>
+        {filter !== "all" && <p className="jw-body">{districts.find((d) => d.id === filter)?.blurb}</p>}
+        <div className="jw-cards">
+          {shown.map((e) => {
+            const d = districts.find((x) => x.id === e.district);
+            const img = e.board || e.cover;
+            return (
+              <button key={e.slug} className="jw-card" onClick={() => props.onOpen(e)} style={d ? ({ "--pc": d.color } as React.CSSProperties) : undefined}>
+                <span className="jw-card-img">{img ? <img src={asset(img)} alt="" loading="lazy" /> : <span className="jw-card-ph">{e.title}</span>}</span>
+                <span className="jw-card-body">
+                  <span className="jw-card-top">
+                    <span className="jw-card-d">{d?.short}</span>
+                    <StatusChip status={e.status} />
+                  </span>
+                  <span className="jw-h3">{e.title}</span>
+                  <span className="jw-small jw-clamp">{e.summary}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="pf-experience" className="jw-pf-section jw-pf-alt">
+        <div className="jw-pf-narrow">
+          <CVExperience cv={cv} />
+        </div>
+      </section>
+
+      <section id="pf-skills" className="jw-pf-section">
+        <div className="jw-pf-narrow">
+          <h2 className="jw-h2">Skills</h2>
+          {cv.skills.map((s) => (
+            <div key={s.tier} className="jw-skill-tier">
+              <p className="jw-tag">
+                {s.tier} <span className="jw-muted">· {s.note}</span>
+              </p>
+              <div className="jw-chips">
+                {s.items.map((t) => (
+                  <span key={t} className={`jw-chip ${s.tier === "Developing" ? "jw-chip-soft" : ""}`}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          <h3 className="jw-h3 jw-sub">Education</h3>
+          {cv.education.map((ed) => (
+            <div key={ed.award} className="jw-job">
+              <p className="jw-job-role">{ed.award}</p>
+              <p className="jw-job-org">{ed.school}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="pf-contact" className="jw-pf-section jw-pf-dark">
+        <div className="jw-pf-narrow">
+          <ContactView cv={cv} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CVExperience({ cv }: { cv: CV }) {
+  return (
+    <>
+      <h2 className="jw-h2">Experience</h2>
+      <div className="jw-timeline">
+        {cv.experience.map((x) => (
+          <div key={x.org} className="jw-job">
+            <p className="jw-job-period">{x.period}</p>
+            <p className="jw-job-role">{x.role}</p>
+            <p className="jw-job-org">{x.org}</p>
+            {x.summary && <p className="jw-small">{x.summary}</p>}
+            {x.groups?.map((g) => (
+              <div key={g.label} className="jw-job-group">
+                <p className="jw-tag">{g.label}</p>
+                <p className="jw-small">{g.items.join(" · ")}</p>
+              </div>
+            ))}
+            {x.highlights && (
+              <>
+                <p className="jw-tag">Key projects</p>
+                <ul className="jw-list-plain jw-small">
+                  {x.highlights.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -516,6 +861,14 @@ function MapIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" />
       <path d="M9 4v14M15 6v14" />
+    </svg>
+  );
+}
+function ListIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M9 9v11" />
     </svg>
   );
 }
