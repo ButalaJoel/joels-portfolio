@@ -88,35 +88,18 @@ export const exhibits: Exhibit[] = [
     ]
   },
   {
-    "client": "Peacock Paints Ltd",
-    "role": "Marketing & Communications, Peacock Paints",
-    "sector": "Campaign",
-    "problem": "",
-    "solution": "",
-    "deliverables": [
-      "Campaign development"
-    ],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "peacock-40",
-    "title": "Peacock@40 anniversary campaign",
+    "slug": "peacock-exhibitions",
+    "title": "Exhibitions",
     "district": "marketing",
     "status": "role",
-    "summary": "The campaign marking 40 years of Peacock Paints."
-  },
-  {
     "client": "Peacock Paints Ltd",
     "role": "Marketing & Communications, Peacock Paints",
     "sector": "Events",
+    "summary": "The UMA Exhibition: exhibition planning, stand graphics and content.",
     "problem": "",
     "solution": "",
     "deliverables": [
       "UMA Exhibition",
-      "Smart Painters Clinic",
-      "Sanyu Babies Home painting activity",
       "Exhibition graphics",
       "Exhibition planning"
     ],
@@ -134,17 +117,17 @@ export const exhibits: Exhibit[] = [
           "/work/peacock-paints/event-award-colour-wall.jpg"
         ]
       }
-    ],
-    "slug": "peacock-exhibitions",
-    "title": "Exhibitions & community",
-    "district": "marketing",
-    "status": "role",
-    "summary": "The UMA Exhibition, the Smart Painters Clinic and a painting activity at Sanyu Babies Home: exhibition planning, graphics and content."
+    ]
   },
   {
+    "slug": "peacock-launches",
+    "title": "Product launches & advertising",
+    "district": "marketing",
+    "status": "role",
     "client": "Peacock Paints Ltd",
     "role": "Marketing & Communications, Peacock Paints",
     "sector": "Advertising",
+    "summary": "Launches and advertising across the range: WeatherShield Plus, Polatex, MBasecoat Aluminium, Shifa Emulsion and Concrete Sealer, plus industrial and decorative paint ads, TV commercial development and wall branding.",
     "problem": "",
     "solution": "",
     "deliverables": [
@@ -173,17 +156,17 @@ export const exhibits: Exhibit[] = [
           "/work/peacock-paints/product-mastic.jpg"
         ]
       }
-    ],
-    "slug": "peacock-launches",
-    "title": "Product launches & advertising",
-    "district": "marketing",
-    "status": "role",
-    "summary": "Launches and advertising across the range: WeatherShield Plus, Polatex, MBasecoat Aluminium, Shifa Emulsion and Concrete Sealer, plus industrial and decorative paint ads, TV commercial development and wall branding."
+    ]
   },
   {
+    "slug": "peacock-communications",
+    "title": "Newsletters & corporate communications",
+    "district": "marketing",
+    "status": "role",
     "client": "Peacock Paints Ltd",
     "role": "Marketing & Communications, Peacock Paints",
     "sector": "Communications",
+    "summary": "The Peacock Chronicles and Peacock Bulletin newsletters, product technical sheets, company profiles, brochures, catalogues and internal publications.",
     "problem": "",
     "solution": "",
     "deliverables": [
@@ -209,20 +192,21 @@ export const exhibits: Exhibit[] = [
           "/work/peacock-paints/catalogue-colour-systems.jpg"
         ]
       }
-    ],
-    "slug": "peacock-communications",
-    "title": "Newsletters & corporate communications",
-    "district": "marketing",
-    "status": "role",
-    "summary": "The Peacock Chronicles and Peacock Bulletin newsletters, product technical sheets, company profiles, brochures, catalogues and internal publications."
+    ]
   },
   {
+    "slug": "peacock-social",
+    "title": "Social media & digital",
+    "district": "marketing",
+    "status": "role",
     "client": "Peacock Paints Ltd",
     "role": "Marketing & Communications, Peacock Paints",
     "sector": "Digital marketing",
+    "summary": "Social media management on Facebook, Instagram, TikTok, X and WhatsApp, with short-form video and product education.",
     "problem": "",
     "solution": "",
     "deliverables": [
+      "Social media management",
       "Facebook",
       "Instagram",
       "TikTok",
@@ -245,12 +229,7 @@ export const exhibits: Exhibit[] = [
           "/work/peacock-paints/social-find-your-finish.jpg"
         ]
       }
-    ],
-    "slug": "peacock-social",
-    "title": "Social media & digital",
-    "district": "marketing",
-    "status": "role",
-    "summary": "Organic social media on Facebook, Instagram, TikTok, X and WhatsApp, with short-form video and product education. TikTok grew from about 800 to 1,091 followers over the documented 2026 period."
+    ]
   },
   {
     "slug": "concrete-finisher-ug",
@@ -438,9 +417,14 @@ export const exhibits: Exhibit[] = [
     ]
   },
   {
+    "slug": "brand-identities",
+    "title": "Logos & brand identities",
+    "district": "creative",
+    "status": "live",
     "client": "Various clients",
     "role": "Designed by me, mostly through NovaWorks",
     "sector": "Brand identity",
+    "summary": "A selection of the marks I have designed for businesses, a foundation, a hotel and my own ventures.",
     "problem": "",
     "solution": "",
     "deliverables": [
@@ -467,17 +451,17 @@ export const exhibits: Exhibit[] = [
           "/work/logos/nova-works.jpg"
         ]
       }
-    ],
-    "slug": "brand-identities",
-    "title": "Logos & brand identities",
-    "district": "creative",
-    "status": "live",
-    "summary": "A selection of the marks I have designed for businesses, a foundation, a hotel and my own ventures."
+    ]
   },
   {
+    "slug": "motion-video",
+    "title": "Video & motion graphics",
+    "district": "creative",
+    "status": "live",
     "client": "Peacock Paints · Concrete Finisher UG",
     "role": "Edited and animated by me",
     "sector": "Motion & video",
+    "summary": "Promotional videos, product explainers, reels and brand animation, cut from real site footage and product shots.",
     "problem": "",
     "solution": "",
     "deliverables": [
@@ -507,72 +491,7 @@ export const exhibits: Exhibit[] = [
           "/work/peacock-paints/video-slab-waterproofing.mp4"
         ]
       }
-    ],
-    "slug": "motion-video",
-    "title": "Video & motion graphics",
-    "district": "creative",
-    "status": "live",
-    "summary": "Promotional videos, product explainers, reels and brand animation, cut from real site footage and product shots."
-  },
-  {
-    "client": "",
-    "role": "Brand design",
-    "sector": "Security",
-    "problem": "",
-    "solution": "",
-    "deliverables": [
-      "Branding"
-    ],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "spear-home-security",
-    "title": "SPEAR Home Security Solutions",
-    "district": "creative",
-    "status": "live",
-    "summary": "Branding for SPEAR Home Security Solutions."
-  },
-  {
-    "client": "",
-    "role": "Packaging design",
-    "sector": "Cleaning products",
-    "problem": "",
-    "solution": "",
-    "deliverables": [
-      "Packaging"
-    ],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "proclean-packaging",
-    "title": "ProClean packaging",
-    "district": "creative",
-    "status": "live",
-    "summary": "Packaging design for ProClean."
-  },
-  {
-    "client": "",
-    "role": "Packaging-related design",
-    "sector": "Manufacturing",
-    "problem": "",
-    "solution": "",
-    "deliverables": [
-      "Packaging design"
-    ],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "luka-plastics",
-    "title": "LUKA Plastics",
-    "district": "creative",
-    "status": "live",
-    "summary": "Packaging-related design work for LUKA Plastics."
+    ]
   },
   {
     "slug": "ms-home-security",
@@ -955,9 +874,14 @@ export const exhibits: Exhibit[] = [
     "sections": []
   },
   {
+    "slug": "novaworks",
+    "title": "NovaWorks",
+    "district": "business",
+    "status": "live",
     "client": "Nova Creative Works Ltd",
     "role": "Founder",
     "sector": "Brand, Digital & Growth Studio",
+    "summary": "Brand, Digital & Growth Studio — built for brands on the rise. My studio for branding, websites, software, motion and marketing, with client revenue meant to fund experimental technology.",
     "problem": "",
     "solution": "Today: brand identity, graphic design, web and software development, motion and video, and marketing for growing Ugandan businesses.",
     "deliverables": [
@@ -976,12 +900,7 @@ export const exhibits: Exhibit[] = [
         "body": "AI agents and automation, robotics with ESP32 and Raspberry Pi, hardware and sensors, game development, simulation, sports technology, and research and development. These are planned, not current services.",
         "media": []
       }
-    ],
-    "slug": "novaworks",
-    "title": "NovaWorks",
-    "district": "business",
-    "status": "live",
-    "summary": "Brand, Digital & Growth Studio — built for brands on the rise. My studio for branding, websites, software, motion and marketing, with client revenue meant to fund experimental technology."
+    ]
   },
   {
     "slug": "beer-bros",
@@ -1050,60 +969,6 @@ export const exhibits: Exhibit[] = [
         ]
       }
     ]
-  },
-  {
-    "client": "",
-    "role": "Owner",
-    "sector": "Gaming",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "ij-gadgets",
-    "title": "IJ Gadgets",
-    "district": "business",
-    "status": "business",
-    "summary": "A gaming business and gaming hub."
-  },
-  {
-    "client": "",
-    "role": "Owner",
-    "sector": "Events",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "ij-bouncy-houses",
-    "title": "IJ Bouncy Houses",
-    "district": "business",
-    "status": "business",
-    "summary": "Events and inflatable entertainment."
-  },
-  {
-    "client": "",
-    "role": "Owner",
-    "sector": "Creative & digital",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "ij-creative-labs",
-    "title": "IJ Creative Labs",
-    "district": "business",
-    "status": "business",
-    "summary": "Creative and digital experimentation."
   },
   {
     "slug": "the-plug",
@@ -1215,29 +1080,6 @@ export const exhibits: Exhibit[] = [
     ]
   },
   {
-    "client": "",
-    "role": "Designed and built by me",
-    "sector": "Games & simulation",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [
-      "Three.js",
-      "React",
-      "Next.js",
-      "TypeScript"
-    ],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "simulation-games",
-    "title": "Simulations & game development",
-    "district": "innovation",
-    "status": "in-progress",
-    "summary": "Interactive 3D worlds and games. JOELVERSE, the world you are riding through now, is the first one."
-  },
-  {
     "slug": "upl-fantasy",
     "title": "UPL Fantasy",
     "district": "innovation",
@@ -1295,95 +1137,5 @@ export const exhibits: Exhibit[] = [
     "cover": "",
     "board": "",
     "sections": []
-  },
-  {
-    "slug": "uganda-bus-routes",
-    "title": "Uganda Bus Routes",
-    "district": "innovation",
-    "status": "planned",
-    "client": "Open source",
-    "role": "Open-source project I am planning",
-    "sector": "Transport",
-    "summary": "An open-source booking system covering local and international bus routes across Uganda.",
-    "problem": "Bus routes, times and fares in Uganda live in people’s heads and at the park.",
-    "solution": "An open-source booking system covering local and international bus routes across Uganda.",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": []
-  },
-  {
-    "client": "",
-    "role": "Concept I am exploring",
-    "sector": "Fintech",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "crowdfunding-platform",
-    "title": "Ugandan crowdfunding platform",
-    "district": "innovation",
-    "status": "concept",
-    "summary": "A crowdfunding platform built for Uganda. A concept, not a product yet."
-  },
-  {
-    "client": "",
-    "role": "Concept I am exploring",
-    "sector": "Consumer trust",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "trust-reviews",
-    "title": "Uganda Trust & Reviews",
-    "district": "innovation",
-    "status": "concept",
-    "summary": "A trust and reviews platform for Ugandan businesses. A concept, not a product yet."
-  },
-  {
-    "client": "",
-    "role": "Research & experiments",
-    "sector": "AI",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "ai-agents",
-    "title": "AI agents & automation",
-    "district": "innovation",
-    "status": "concept",
-    "summary": "Using AI agents to automate business work. I already use AI-assisted development daily; agents for clients are being explored."
-  },
-  {
-    "client": "",
-    "role": "Learning & experiments",
-    "sector": "Hardware",
-    "problem": "",
-    "solution": "",
-    "deliverables": [],
-    "stack": [],
-    "link": "",
-    "cover": "",
-    "board": "",
-    "sections": [],
-    "slug": "robotics-embedded",
-    "title": "Robotics & embedded systems",
-    "district": "innovation",
-    "status": "concept",
-    "summary": "ESP32, Raspberry Pi, sensors and robotics. An area I am learning, not yet a service."
   }
 ];

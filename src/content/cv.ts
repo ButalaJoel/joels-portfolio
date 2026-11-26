@@ -9,9 +9,8 @@ export const cv: CV = {
   summary: [
     "I work across creativity, marketing, communications, technology and entrepreneurship.",
     "I lead marketing and communications at Peacock Paints, run NovaWorks, my brand, digital and growth studio, and design and build brands, websites and software for Ugandan businesses.",
-    "Self-taught in graphic design; I learned to code by building real projects.",
   ],
-  email: "hello@joelbutala.com",
+  email: "btljoel97@gmail.com",
   phones: [
     { display: "0786 713 906", tel: "+256786713906" },
     { display: "0791 483 971", tel: "+256791483971" },
@@ -74,15 +73,12 @@ export const cv: CV = {
         },
       ],
       highlights: [
-        "Peacock@40 anniversary campaign",
         "UMA Exhibition",
-        "Smart Painters Clinic",
-        "Sanyu Babies Home painting activity",
         "Peacock Chronicles and Peacock Bulletin newsletters",
         "Product catalogue",
         "Launches: WeatherShield Plus, Polatex, MBasecoat Aluminium, Shifa Emulsion, Concrete Sealer",
         "Television commercial development and wall branding campaigns",
-        "TikTok grew from about 800 to 1,091 followers over the documented 2026 period",
+        "Social media management",
       ],
     },
     {
@@ -134,7 +130,7 @@ export const cv: CV = {
   achievements: [
     "First Class Diploma in Information and Communication Technology, UICT",
     "Marketing & Communications Manager at Peacock Paints",
-    "Founded NovaWorks and several of my own businesses",
+    "Founded NovaWorks (Nova Creative Works Ltd)",
     "Live systems in daily use, including a point-of-sale system for MS Security Systems",
   ],
 };
